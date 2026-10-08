@@ -176,8 +176,8 @@ function App() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError("Choose an image smaller than 10 MB.");
+    if (file.size > 4 * 1024 * 1024) {
+      setError("Choose an image smaller than 4 MB.");
       setSelectedFile(null);
       setPreview(null);
       setResult(null);

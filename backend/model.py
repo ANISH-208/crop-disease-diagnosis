@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from backend.config import CLASS_MAPPING_PATH, MODEL_PATH
+from backend.config import CLASS_MAPPING_PATH, LITE_MODEL_PATH, MODEL_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -29,21 +29,23 @@ _model = None
 _model_lock = threading.Lock()
 _prediction_lock = threading.Lock()
 _load_error: str | None = None
+_active_runtime: str | None = None
 
 
 def model_status() -> dict:
     """Return model readiness without triggering a heavyweight load."""
     if _model is not None:
-        return {"status": "loaded", "ready": True, "version": MODEL_VERSION}
-    if not MODEL_PATH.is_file():
+        return {"status": "loaded", "ready": True, "version": MODEL_VERSION, "runtime": _active_runtime}
+    if not LITE_MODEL_PATH.is_file() and not MODEL_PATH.is_file():
         return {"status": "missing", "ready": False, "version": MODEL_VERSION}
     if _load_error:
         return {"status": "error", "ready": False, "version": MODEL_VERSION}
-    return {"status": "available", "ready": True, "version": MODEL_VERSION}
+    runtime = "tflite" if LITE_MODEL_PATH.is_file() else "tensorflow"
+    return {"status": "available", "ready": True, "version": MODEL_VERSION, "runtime": runtime}
 
 
 def _load_model():
-    global _model, _load_error
+    global _model, _load_error, _active_runtime
     if _model is not None:
         return _model
 
@@ -51,8 +53,26 @@ def _load_model():
         if _model is not None:
             return _model
         try:
+            if LITE_MODEL_PATH.is_file():
+                from ai_edge_litert.interpreter import Interpreter
+
+                logger.info("Loading LiteRT model version=%s path=%s", MODEL_VERSION, LITE_MODEL_PATH.name)
+                interpreter = Interpreter(model_path=str(LITE_MODEL_PATH), num_threads=2)
+                interpreter.allocate_tensors()
+                input_details = interpreter.get_input_details()
+                output_details = interpreter.get_output_details()
+                if len(input_details) != 1 or tuple(input_details[0]["shape"]) != (1, 224, 224, 3):
+                    raise RuntimeError("LiteRT model has an incompatible input shape.")
+                if len(output_details) != 1 or tuple(output_details[0]["shape"]) != (1, EXPECTED_CLASS_COUNT):
+                    raise RuntimeError("LiteRT model has an incompatible output shape.")
+                _model = (interpreter, input_details[0], output_details[0])
+                _load_error = None
+                _active_runtime = "tflite"
+                logger.info("LiteRT model loaded version=%s", MODEL_VERSION)
+                return _model
+
             if not MODEL_PATH.is_file():
-                raise FileNotFoundError(f"Trained model file is missing: {MODEL_PATH.name}")
+                raise FileNotFoundError(f"Neither LiteRT nor Keras model is present ({LITE_MODEL_PATH.name}).")
             with MODEL_PATH.open("rb") as model_file:
                 if model_file.read(80).startswith(b"version https://git-lfs.github.com/spec/v1"):
                     raise RuntimeError("The model path contains a Git LFS pointer instead of model data.")
@@ -69,6 +89,7 @@ def _load_model():
                 raise RuntimeError(f"Expected model input [batch, 224, 224, 3]; got {input_shape}.")
             _model = loaded
             _load_error = None
+            _active_runtime = "tensorflow"
             logger.info("Model loaded version=%s parameters=%s", MODEL_VERSION, loaded.count_params())
             return _model
         except Exception as exc:
@@ -78,13 +99,19 @@ def _load_model():
 
 
 def predict_disease(image_path: str | Path) -> dict:
-    model = _load_model()
+    runtime = _load_model()
     with Image.open(image_path) as source:
         image = source.convert("RGB").resize(IMAGE_SIZE)
 
     image_array = np.expand_dims(np.asarray(image, dtype=np.float32), axis=0)
     with _prediction_lock:
-        predictions = np.asarray(model.predict(image_array, verbose=0))[0]
+        if isinstance(runtime, tuple):
+            interpreter, input_details, output_details = runtime
+            interpreter.set_tensor(input_details["index"], image_array.astype(input_details["dtype"], copy=False))
+            interpreter.invoke()
+            predictions = np.asarray(interpreter.get_tensor(output_details["index"]))[0]
+        else:
+            predictions = np.asarray(runtime.predict(image_array, verbose=0))[0]
 
     if predictions.shape != (EXPECTED_CLASS_COUNT,) or not np.isfinite(predictions).all():
         raise RuntimeError("The model returned an invalid prediction vector.")

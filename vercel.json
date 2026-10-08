@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "index.py": {
+      "maxDuration": 300,
+      "excludeFiles": "{frontend/**,tests/**,scripts/**,ml_v6/datasets/**,models/*.keras,venv/**}"
+    }
+  }
+}

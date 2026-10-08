@@ -1,6 +1,6 @@
 # Crop Doctor AI
 
-Crop Doctor AI is an AI-assisted crop leaf screening application. A React interface sends JPG/PNG images to a FastAPI service, which runs a trained EfficientNetV2-S classifier, enriches the prediction with crop guidance, and routes cases for expert review. SQLite stores review alerts and WebSockets publish diagnosis and status events.
+Crop Doctor AI is an AI-assisted crop leaf screening application. A React interface sends JPG/PNG images to a FastAPI service, which runs a trained EfficientNetV2-S classifier through LiteRT, enriches the prediction with crop guidance, and routes cases for expert review. SQLite stores review alerts and WebSockets publish diagnosis and status events.
 
 The application is a portfolio and research prototype. It is not a substitute for local agronomic expertise or laboratory diagnosis.
 
@@ -17,7 +17,7 @@ The application is a portfolio and research prototype. It is not a substitute fo
 
 ```text
 React + Vite ── REST / WebSocket ── FastAPI
-                                      ├── EfficientNetV2-S (.keras / Git LFS)
+                                      ├── EfficientNetV2-S LiteRT (.tflite / Git LFS)
                                       ├── Disease metadata (38 classes)
                                       └── SQLite expert alerts
 ```
@@ -30,10 +30,10 @@ The reported **99.04% accuracy**, **99.98% top-5 accuracy**, and **98.58% macro 
 
 ## Requirements
 
-- Python 3.11 or newer supported by the pinned TensorFlow build
+- Python 3.13 (Vercel runtime) or newer supported by LiteRT
 - Node.js 20.19+ (or 22.12+)
 - Git LFS for the trained model artifact
-- About 200 MB for the model plus Python runtime dependencies
+- About 22 MB for the LiteRT model plus Python runtime dependencies
 
 ## Run locally
 
@@ -67,12 +67,13 @@ Backend variables are read from the process environment:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `CROP_DOCTOR_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated CORS origins |
-| `CROP_DOCTOR_MAX_UPLOAD_BYTES` | `10485760` | Maximum image size (10 MiB) |
+| `CROP_DOCTOR_MAX_UPLOAD_BYTES` | `4194304` | Maximum image size (4 MiB; fits Vercel's function request limit) |
 | `CROP_DOCTOR_MAX_IMAGE_PIXELS` | `40000000` | Maximum decoded image pixels |
 | `CROP_DOCTOR_CONFIDENCE_THRESHOLD` | `80` | Below this score, request expert review |
 | `CROP_DOCTOR_UPLOAD_DIR` | `backend/uploads` | Persisted images linked to alerts |
 | `CROP_DOCTOR_DATABASE_PATH` | `backend/alerts.db` | SQLite alert database |
-| `CROP_DOCTOR_MODEL_PATH` | `models/crop_doctor_v6_efficientnetv2s.keras` | Trained model file |
+| `CROP_DOCTOR_MODEL_PATH` | `models/crop_doctor_v6_efficientnetv2s.keras` | Optional Keras fallback model |
+| `CROP_DOCTOR_LITE_MODEL_PATH` | `models/crop_doctor_v6_efficientnetv2s.tflite` | LiteRT inference model |
 
 Frontend variables are configured in `frontend/.env`:
 
@@ -144,6 +145,8 @@ python ml_v6/scripts/sanity_check.py
 ```
 
 Training is intentionally not part of the API install. `dataset_manifest.csv` is generated locally from the raw images and ignored by Git. The optional leaf-group map improves split isolation; without it, the split utility uses deterministic hash assignment and consolidates exact duplicate images. Training writes the production model to `models/crop_doctor_v6_efficientnetv2s.keras`; that artifact must remain managed by Git LFS.
+
+To refresh the compact inference artifact after retraining, install the optional ML dependencies and run `python scripts/convert_lite_model.py`. The Vercel API project should use the repository root, with `index.py` as the FastAPI entrypoint. Its `/tmp` SQLite database is ephemeral; connect a persistent database before using expert alerts as durable records.
 
 ## Repository layout
 
