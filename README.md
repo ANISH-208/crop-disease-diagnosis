@@ -10,7 +10,7 @@ The application is a portfolio and research prototype. It is not a substitute fo
 - Confidence score, top predictions, symptoms, and prevention guidance
 - Expert queue with pending, in-review, and resolved states
 - Analytics, crop reference, model card, and settings screens
-- SQLite persistence and live alert updates
+- SQLite alert storage locally and live alert updates
 - Upload validation, configurable limits, and model readiness reporting
 
 ## Architecture
@@ -59,6 +59,12 @@ npm run dev
 ```
 
 Open the Vite URL printed in the terminal (normally `http://localhost:5173`). The model loads lazily on the first diagnosis request; `/health` reports whether the model file is available.
+
+## Deploy on Vercel
+
+The root `vercel.json` defines two services in one Vercel project: the FastAPI API at `/api/*` and the Vite frontend at `/`. Import the repository with its root directory set to `.` and deploy the `vercel-backend` branch. Vercel's Python runtime installs the lightweight dependencies from `requirements.txt`; the API uses the 22 MB LiteRT artifact. Keep the frontend's `VITE_API_URL` unset or set it to `/api` and remove any old `VITE_WS_URL` override.
+
+Vercel functions have an ephemeral filesystem. This demo uses `/tmp` for its SQLite database and uploaded files, so expert alerts and attached images are not durable across cold starts. Configure a persistent database and object storage before relying on long-term case records.
 
 ### Environment variables
 

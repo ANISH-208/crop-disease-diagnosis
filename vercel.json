@@ -1,9 +1,28 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": {
-    "index.py": {
-      "maxDuration": 300,
-      "excludeFiles": "{frontend/**,tests/**,scripts/**,ml_v6/datasets/**,models/*.keras,venv/**}"
+  "services": {
+    "crop-doctor-api": {
+      "root": ".",
+      "framework": "fastapi"
+    },
+    "crop-doctor-frontend": {
+      "root": "frontend",
+      "framework": "vite",
+      "buildCommand": "npm ci && npm run build"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "crop-doctor-api"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "crop-doctor-frontend"
+      }
+    }
+  ]
 }

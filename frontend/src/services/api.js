@@ -1,5 +1,13 @@
-export const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
-export const WS_URL = import.meta.env.VITE_WS_URL || `${API_URL.replace(/^http/, "ws")}/ws`;
+export const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "/api" : "http://127.0.0.1:8000")).replace(/\/+$/, "");
+
+function websocketUrl() {
+  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
+  const url = new URL(`${API_URL}/ws`, window.location.origin);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
+}
+
+export const WS_URL = websocketUrl();
 
 async function readResponse(response, fallbackMessage) {
   const payload = await response.json().catch(() => ({}));
