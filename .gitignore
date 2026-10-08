@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# macOS
+.DS_Store
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Backend runtime files
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Local databases
+*.db
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+
+# ML caches / temporary files
+.ipynb_checkpoints/
+
+# Large datasets
+ml_v6/datasets/PlantVillage/
+
+# Training-generated temporary files
+ml_v6/checkpoints/
+
+# TensorFlow / Python caches
+*.pyc
+
+# Training model artifact
+ml_v6/outputs/*.keras

@@ -1,0 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap");
+
+:root { font-family: "Manrope", system-ui, sans-serif; color-scheme: dark; }
+html, body, #root { min-height: 100%; }
+body { margin: 0; min-width: 320px; background: #07100b; }
