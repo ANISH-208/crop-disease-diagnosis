@@ -605,9 +605,11 @@ np.save(
 # ------------------------------------------------------------
 
 final_model_path = (
-    OUTPUT_DIR /
+    ROOT / "models" /
     "crop_doctor_v6_efficientnetv2s.keras"
 )
+
+final_model_path.parent.mkdir(parents=True, exist_ok=True)
 
 best_model.save(
     final_model_path
@@ -635,4 +637,3 @@ for metric, value in test_results.items():
 
 print(f"{'macro_f1':20s}: {macro_f1:.4f}")
 print(f"{'weighted_f1':20s}: {weighted_f1:.4f}")
-

@@ -1,23 +1,20 @@
 import sqlite3
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
+from backend.config import DATABASE_PATH
 
 
 # =========================================================
 # DATABASE
 # =========================================================
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATABASE_PATH = BASE_DIR / "backend" / "alerts.db"
-
-
 # =========================================================
 # DATABASE INITIALIZATION
 # =========================================================
 
 def get_connection():
-    connection = sqlite3.connect(DATABASE_PATH)
+    connection = sqlite3.connect(DATABASE_PATH, timeout=10)
+    connection.execute("PRAGMA busy_timeout = 10000")
 
     connection.row_factory = sqlite3.Row
 
@@ -25,6 +22,7 @@ def get_connection():
 
 
 def initialize_database():
+    DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     connection = get_connection()
 
     connection.execute(
@@ -77,46 +75,28 @@ def create_alert(
     if severity_lower in ["critical", "high"]:
         priority = "high"
 
-    elif severity_lower == "medium":
+    elif severity_lower in ["medium", "moderate"]:
         priority = "medium"
 
     else:
         priority = "normal"
 
     connection = get_connection()
-
-    connection.execute(
-        """
-        INSERT INTO alerts (
-            id,
-            created_at,
-            crop,
-            diagnosis,
-            severity,
-            confidence,
-            symptoms,
-            image_filename,
-            status,
-            priority
+    try:
+        connection.execute(
+            """
+            INSERT INTO alerts (
+                id, created_at, crop, diagnosis, severity, confidence,
+                symptoms, image_filename, status, priority
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (alert_id, created_at, crop, diagnosis, severity, confidence,
+             symptoms, image_filename, "pending", priority),
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            alert_id,
-            created_at,
-            crop,
-            diagnosis,
-            severity,
-            confidence,
-            symptoms,
-            image_filename,
-            "pending",
-            priority,
-        ),
-    )
-
-    connection.commit()
-    connection.close()
+        connection.commit()
+    finally:
+        connection.close()
 
     return {
         "id": alert_id,
@@ -140,39 +120,26 @@ def get_alerts(status: str | None = None):
 
     connection = get_connection()
 
-    if status:
-        rows = connection.execute(
-            """
-            SELECT *
-            FROM alerts
-            WHERE status = ?
-            ORDER BY
-                CASE priority
-                    WHEN 'high' THEN 1
-                    WHEN 'medium' THEN 2
-                    ELSE 3
-                END,
+    try:
+        if status:
+            rows = connection.execute(
+                """
+                SELECT * FROM alerts WHERE status = ?
+                ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
                 created_at DESC
-            """,
-            (status,),
-        ).fetchall()
-
-    else:
-        rows = connection.execute(
-            """
-            SELECT *
-            FROM alerts
-            ORDER BY
-                CASE priority
-                    WHEN 'high' THEN 1
-                    WHEN 'medium' THEN 2
-                    ELSE 3
-                END,
+                """,
+                (status,),
+            ).fetchall()
+        else:
+            rows = connection.execute(
+                """
+                SELECT * FROM alerts
+                ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
                 created_at DESC
-            """
-        ).fetchall()
-
-    connection.close()
+                """
+            ).fetchall()
+    finally:
+        connection.close()
 
     return [dict(row) for row in rows]
 
@@ -185,16 +152,10 @@ def get_alert(alert_id: str):
 
     connection = get_connection()
 
-    row = connection.execute(
-        """
-        SELECT *
-        FROM alerts
-        WHERE id = ?
-        """,
-        (alert_id,),
-    ).fetchone()
-
-    connection.close()
+    try:
+        row = connection.execute("SELECT * FROM alerts WHERE id = ?", (alert_id,)).fetchone()
+    finally:
+        connection.close()
 
     if row is None:
         return None
@@ -213,20 +174,12 @@ def update_alert_status(
 
     connection = get_connection()
 
-    cursor = connection.execute(
-        """
-        UPDATE alerts
-        SET status = ?
-        WHERE id = ?
-        """,
-        (status, alert_id),
-    )
-
-    connection.commit()
-
-    updated = cursor.rowcount > 0
-
-    connection.close()
+    try:
+        cursor = connection.execute("UPDATE alerts SET status = ? WHERE id = ?", (status, alert_id))
+        connection.commit()
+        updated = cursor.rowcount > 0
+    finally:
+        connection.close()
 
     if not updated:
         return None

@@ -23,7 +23,7 @@ export default function FieldResponse({ result }) {
         </div>
 
         <div className="actions">
-          {(result.prevention || []).map((item, index) => (
+          {result.prevention?.length ? result.prevention.map((item, index) => (
             <div key={`${item}-${index}`}>
               <span>
                 {String(index + 1).padStart(2, "0")}
@@ -31,7 +31,7 @@ export default function FieldResponse({ result }) {
 
               {item}
             </div>
-          ))}
+          )) : <div>Monitor the crop and consult a local agricultural specialist for next steps.</div>}
         </div>
       </div>
     </section>

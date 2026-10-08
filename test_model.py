@@ -1,50 +1,22 @@
-from backend.diagnosis import diagnose_image
+"""Run one diagnosis from the command line for a local image."""
+
+import argparse
+import json
 from pathlib import Path
 
-
-# Change this to your test image
-image_path = "backend/uploads/8314ea99-42f8-4d77-b0d3-7caa40949d69.jpeg"
-
-# Check that the image exists
-if not Path(image_path).exists():
-    print(f"❌ Image not found: {image_path}")
-    exit()
+from backend.diagnosis import diagnose_image
 
 
-# Run complete diagnosis
-result = diagnose_image(image_path)
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run Crop Doctor AI on one JPG or PNG image.")
+    parser.add_argument("image", type=Path, help="Path to a crop leaf image")
+    args = parser.parse_args()
+    if not args.image.is_file():
+        parser.error(f"image does not exist: {args.image}")
+
+    result = diagnose_image(args.image)
+    print(json.dumps(result, indent=2))
 
 
-print("\n")
-print("=" * 50)
-print("       🌱 CROP DISEASE DIAGNOSIS")
-print("=" * 50)
-
-print(f"\n🌱 Crop")
-print(f"   {result['crop']}")
-
-print(f"\n🔬 Diagnosis")
-print(f"   {result['diagnosis']}")
-
-print(f"\n🎯 Confidence")
-print(f"   {result['confidence']:.2f}%")
-
-print(f"\n⚠️ Severity")
-print(f"   {result['severity']}")
-
-print(f"\n🩺 Symptoms")
-print(f"   {result['symptoms']}")
-
-print(f"\n🛡️ Preventive Measures")
-
-for measure in result["prevention"]:
-    print(f"   • {measure}")
-
-print(f"\n👨‍🌾 Expert Review")
-print(
-    "   Recommended"
-    if result["expert_review"]
-    else "   Not required"
-)
-
-print("\n" + "=" * 50)
+if __name__ == "__main__":
+    main()

@@ -118,12 +118,12 @@ def main():
     # LOAD LEAF MAP
     # ------------------------------------------------------------
 
-    with LEAF_MAP.open(
-        "r",
-        encoding="utf-8"
-    ) as f:
-
-        leaf_map = json.load(f)
+    if LEAF_MAP.is_file():
+        with LEAF_MAP.open("r", encoding="utf-8") as f:
+            leaf_map = json.load(f)
+    else:
+        leaf_map = {}
+        print("Leaf grouping metadata unavailable; assigning deterministic hash-based splits.")
 
     print(
         f"Leaf-map entries: {len(leaf_map):,}"

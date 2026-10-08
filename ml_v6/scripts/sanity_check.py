@@ -7,9 +7,10 @@ import tensorflow as tf
 from PIL import Image
 
 
-MODEL_PATH = Path("ml_v6/outputs/crop_doctor_v6_efficientnetv2s.keras")
-MANIFEST_PATH = Path("ml_v6/datasets/dataset_manifest.csv")
-CLASS_MAPPING_PATH = Path("ml_v6/outputs/class_mapping.json")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+MODEL_PATH = PROJECT_ROOT / "models" / "crop_doctor_v6_efficientnetv2s.keras"
+MANIFEST_PATH = PROJECT_ROOT / "ml_v6" / "datasets" / "dataset_manifest.csv"
+CLASS_MAPPING_PATH = PROJECT_ROOT / "ml_v6" / "outputs" / "class_mapping.json"
 
 print("=" * 70)
 print("CROP DOCTOR AI — V6 MODEL SANITY CHECK")
@@ -21,7 +22,7 @@ print("=" * 70)
 
 print("\n[1/5] Loading model...")
 
-model = tf.keras.models.load_model(MODEL_PATH)
+model = tf.keras.models.load_model(MODEL_PATH, compile=False)
 
 print("✓ Model loaded")
 print(f"  Input shape : {model.input_shape}")
@@ -91,6 +92,8 @@ total = 0
 for _, row in samples.iterrows():
 
     image_path = Path(row["image_path"])
+    if not image_path.is_absolute():
+        image_path = PROJECT_ROOT / image_path
     true_label = row["canonical_label"]
 
     image = Image.open(image_path).convert("RGB")

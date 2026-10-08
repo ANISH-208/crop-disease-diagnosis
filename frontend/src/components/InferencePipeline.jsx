@@ -1,46 +1,56 @@
-export default function InferencePipeline({ scanStep }) {
-  const steps = [
-    "IMAGE NORMALIZATION",
-    "FEATURE EXTRACTION",
-    "38-CLASS INFERENCE",
-    "DIAGNOSTIC SIGNATURE",
-  ];
+const PIPELINE_STEPS = [
+  "IMAGE REQUEST",
+  "SERVER INFERENCE",
+  "DIAGNOSTIC REPORT",
+  "EXPERT ROUTING",
+];
 
+export default function InferencePipeline({ scanStep, result, loading }) {
   return (
-    <div className="pipeline-card glass">
+    <div className="pipeline-card glass" aria-live="polite">
       <div className="section-head">
-        <span>02 / INFERENCE PIPELINE</span>
-        <b>LIVE</b>
+        <span>02 / DIAGNOSIS WORKFLOW</span>
+        <b>{result ? "RESPONSE RECEIVED" : loading ? "REQUEST IN FLIGHT" : "READY"}</b>
       </div>
 
       <div className="pipeline">
-        {steps.map((label, i) => (
-          <div
-            className={`pipe-step ${
-              scanStep > i ? "done" : ""
-            } ${
-              scanStep === i + 1 ? "active" : ""
-            }`}
-            key={label}
-          >
-            <span>
-              {String(i + 1).padStart(2, "0")}
-            </span>
+        {PIPELINE_STEPS.map((label, index) => {
+          const step = index + 1;
+          const complete = Boolean(result) || scanStep > step;
+          const active = !result && loading && scanStep === step;
+          const routing = step === 4;
+          const routingText = !result
+            ? "AWAITING RESULT"
+            : result.alert_created
+              ? "ALERT CREATED"
+              : result.expert_review
+                ? "REVIEW ADVISED"
+                : "NOT REQUIRED";
+          const status = routing && result
+            ? routingText
+            : complete
+              ? "COMPLETE"
+              : active
+                ? "WAITING ON API"
+                : loading
+                  ? "AWAITING RESPONSE"
+                  : "READY";
 
-            <div>
-              <strong>{label}</strong>
-
-              <small>
-                {scanStep > i
-                  ? "COMPLETE"
-                  : scanStep === i + 1
-                    ? "PROCESSING"
-                    : "STANDBY"}
-              </small>
+          return (
+            <div
+              className={`pipe-step ${complete ? "done" : ""} ${active ? "active" : ""}`}
+              key={label}
+            >
+              <span>{String(step).padStart(2, "0")}</span>
+              <div>
+                <strong>{label}</strong>
+                <small>{status}</small>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+      <p className="pipeline-note">The API returns a result when inference finishes; individual model internals are not streamed as progress events.</p>
     </div>
   );
 }

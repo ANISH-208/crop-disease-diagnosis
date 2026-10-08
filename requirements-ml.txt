@@ -1,0 +1,4 @@
+-r requirements.txt
+pandas>=2.2,<4
+scikit-learn>=1.5,<2
+datasets>=3,<5

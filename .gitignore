@@ -44,6 +44,7 @@ backend/uploads/*
 
 # Large datasets
 ml_v6/datasets/PlantVillage/
+ml_v6/datasets/dataset_manifest.csv
 
 # Training-generated temporary files
 ml_v6/checkpoints/

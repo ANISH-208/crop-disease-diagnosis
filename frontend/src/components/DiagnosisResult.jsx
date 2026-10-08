@@ -1,7 +1,7 @@
 export default function DiagnosisResult({ result }) {
   const topPredictions = result?.top_predictions || [];
 
-  const confidence = Number(result?.confidence || 0);
+  const confidence = Math.min(100, Math.max(0, Number(result?.confidence || 0)));
 
   const circumference = 2 * Math.PI * 54;
 
@@ -18,8 +18,8 @@ export default function DiagnosisResult({ result }) {
         <div className="section-head">
           <span>03 / DIAGNOSTIC SIGNATURE</span>
 
-          <b className="success">
-            MATCH CONFIRMED
+          <b className={confidence >= 80 ? "success" : "confidence-caution"}>
+            {confidence >= 80 ? "TOP CLASS PREDICTION" : "LOW CONFIDENCE · VERIFY"}
           </b>
         </div>
 
@@ -63,9 +63,9 @@ export default function DiagnosisResult({ result }) {
               {result.crop?.toUpperCase()}
             </small>
 
-            <h2>{result.diagnosis}</h2>
+            <h2>{result.diagnosis || "Unclassified image"}</h2>
 
-            <p>{result.symptoms}</p>
+            <p>{result.symptoms || "Detailed symptom metadata is not available for this class."}</p>
 
             <div className="tag-row">
               <span>
@@ -77,6 +77,8 @@ export default function DiagnosisResult({ result }) {
                 MODEL:{" "}
                 {result.model_version || "V6"}
               </span>
+              <span>{result.expert_review ? "EXPERT REVIEW ADVISED" : "NO EXPERT ESCALATION"}</span>
+              {result.alert?.id && <span>ALERT: {result.alert.status || "PENDING"}</span>}
             </div>
           </div>
         </div>
@@ -93,7 +95,7 @@ export default function DiagnosisResult({ result }) {
         </div>
 
         <div className="predictions">
-          {topPredictions.map((prediction, index) => {
+          {topPredictions.length ? topPredictions.map((prediction, index) => {
             const pct = Number(
               prediction.confidence || 0
             );
@@ -129,7 +131,7 @@ export default function DiagnosisResult({ result }) {
                 </div>
               </div>
             );
-          })}
+          }) : <p className="empty">Top prediction breakdown is unavailable for this response.</p>}
         </div>
       </div>
     </section>

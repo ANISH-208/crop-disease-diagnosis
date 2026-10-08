@@ -1,18 +1,36 @@
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+export const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+export const WS_URL = import.meta.env.VITE_WS_URL || `${API_URL.replace(/^http/, "ws")}/ws`;
+
+async function readResponse(response, fallbackMessage) {
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof payload.detail === "string" ? payload.detail : fallbackMessage;
+    throw new Error(detail || fallbackMessage);
+  }
+  return payload;
+}
+
+export async function fetchHealth() {
+  const response = await fetch(`${API_URL}/health`);
+  return readResponse(response, "Could not reach the diagnosis service.");
+}
 
 export async function fetchAlerts() {
   const response = await fetch(`${API_URL}/alerts`);
 
-  if (!response.ok) {
-    throw new Error("Failed to fetch alerts.");
-  }
-
-  const data = await response.json();
+  const data = await readResponse(response, "Failed to fetch alerts.");
 
   return Array.isArray(data)
     ? data
-    : data.alerts || [];
+    : Array.isArray(data.alerts)
+      ? data.alerts
+      : [];
+}
+
+export async function fetchDiseases() {
+  const response = await fetch(`${API_URL}/diseases`);
+  const data = await readResponse(response, "Could not load crop disease reference data.");
+  return Array.isArray(data.classes) ? data.classes : [];
 }
 
 export async function diagnoseImage(file) {
@@ -24,9 +42,5 @@ export async function diagnoseImage(file) {
     body: formData,
   });
 
-  if (!response.ok) {
-    throw new Error("Diagnosis request failed.");
-  }
-
-  return response.json();
+  return readResponse(response, "Diagnosis request failed.");
 }

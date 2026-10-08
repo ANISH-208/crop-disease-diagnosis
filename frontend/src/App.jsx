@@ -7,32 +7,56 @@ import {
 } from "react";
 
 import "./App.css";
+import "./components/Navigation.css";
 
 import {
   diagnoseImage,
+  fetchHealth,
   fetchAlerts,
 } from "./services/api";
 
 import useWebSocket from "./hooks/useWebSocket";
 
-import Scanner from "./components/Scanner";
-import SpecimenInput from "./components/SpecimenInput";
-import InferencePipeline from "./components/InferencePipeline";
-import DiagnosisResult from "./components/DiagnosisResult";
-import MonitorGrid from "./components/MonitorGrid";
-import FieldResponse from "./components/FieldResponse";
+import Navigation from "./components/Navigation";
+import { DashboardPage, ScannerPage } from "./components/MainPages";
+import ExpertCenter from "./components/ExpertCenter";
+import {
+  AnalyticsPage,
+  CropHealthPage,
+  ModelIntelligencePage,
+  SettingsPage,
+} from "./components/OperationsPages";
 
 function App() {
+  const [page, setPage] = useState("dashboard");
+
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [alertsError, setAlertsError] = useState("");
+  const [backendState, setBackendState] = useState("checking");
+  const [modelState, setModelState] = useState("checking");
   const [socketState, setSocketState] =
     useState("connecting");
 
   const [events, setEvents] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [loadingAlerts, setLoadingAlerts] = useState(true);
+  const [diagnosisHistory, setDiagnosisHistory] = useState([]);
+  const [refreshingAlerts, setRefreshingAlerts] = useState(false);
+  const [preferences, setPreferences] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("crop-doctor-preferences") || "{}");
+      return {
+        palette: ["canopy", "fern", "moss"].includes(stored.palette) ? stored.palette : "canopy",
+        motion: typeof stored.motion === "boolean" ? stored.motion : true,
+      };
+    } catch {
+      return { palette: "canopy", motion: true };
+    }
+  });
   const [scanStep, setScanStep] = useState(0);
 
   const inputRef = useRef(null);
@@ -68,14 +92,14 @@ function App() {
           ...current.filter(
             (alert) => alert.id !== data.id
           ),
-        ].slice(0, 12));
+        ]);
       }
 
       if (type === "alert_updated") {
         setAlerts((current) =>
           current.map((alert) =>
-            alert.id === data.id
-              ? { ...alert, ...data }
+            alert.id === (data.alert || data).id
+              ? { ...alert, ...(data.alert || data) }
               : alert
           )
         );
@@ -91,9 +115,21 @@ function App() {
     [handleRealtimeEvent]
   );
 
+  const handleSocketStatus = useCallback((status) => {
+    setSocketState(status);
+    if (status === "live") {
+      fetchHealth()
+        .then((data) => {
+          setBackendState(data.status);
+          setModelState(data.model?.status || "unknown");
+        })
+        .catch(() => { setBackendState("offline"); setModelState("unknown"); });
+    }
+  }, []);
+
   useWebSocket({
     onEvent: handleSocketEvent,
-    onStatusChange: setSocketState,
+    onStatusChange: handleSocketStatus,
   });
 
   /* =========================================================
@@ -103,10 +139,22 @@ function App() {
   useEffect(() => {
     fetchAlerts()
       .then((data) => {
-        setAlerts(data.slice(0, 12));
+        setAlerts(data);
+        setAlertsError("");
       })
-      .catch(() => {});
+      .catch((err) => setAlertsError(err.message || "Could not load alerts."))
+      .finally(() => setLoadingAlerts(false));
+    fetchHealth()
+      .then((data) => {
+        setBackendState(data.status);
+        setModelState(data.model?.status || "unknown");
+      })
+      .catch(() => { setBackendState("offline"); setModelState("unknown"); });
   }, []);
+
+  useEffect(() => () => {
+    if (preview) URL.revokeObjectURL(preview);
+  }, [preview]);
 
   /* =========================================================
      FILE SELECTION
@@ -119,15 +167,22 @@ function App() {
       return;
     }
 
-    if (!file.type.startsWith("image/")) {
-      setError(
-        "Please select a JPG or PNG crop image."
-      );
+    if (!new Set(["image/jpeg", "image/png"]).has(file.type) || !/\.(jpe?g|png)$/i.test(file.name)) {
+      setError("Please select a valid JPG or PNG crop image.");
+      setSelectedFile(null);
+      setPreview(null);
+      setResult(null);
+      event.target.value = "";
       return;
     }
 
-    if (preview) {
-      URL.revokeObjectURL(preview);
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Choose an image smaller than 10 MB.");
+      setSelectedFile(null);
+      setPreview(null);
+      setResult(null);
+      event.target.value = "";
+      return;
     }
 
     const imageUrl = URL.createObjectURL(file);
@@ -159,36 +214,26 @@ function App() {
     setError("");
     setScanStep(1);
 
-    const timer1 = setTimeout(() => {
-      setScanStep(2);
-    }, 500);
-
-    const timer2 = setTimeout(() => {
-      setScanStep(3);
-    }, 1100);
-
     try {
       const data =
         await diagnoseImage(selectedFile);
 
       setResult(data);
+      setModelState("loaded");
+      setDiagnosisHistory((current) => [
+        { ...data, id: `${Date.now()}`, analyzed_at: new Date().toISOString() },
+        ...current,
+      ].slice(0, 100));
       setScanStep(4);
-    } catch (err) {
-      console.error(err);
 
+    } catch (err) {
       setError(
-        "Unable to connect to the diagnosis server. Make sure FastAPI is running."
+        err.message || "Unable to connect to the diagnosis server. Make sure FastAPI is running."
       );
 
       setScanStep(0);
 
-      pushEvent(
-        "INFERENCE ERROR",
-        "FastAPI diagnosis endpoint unavailable"
-      );
     } finally {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
       setLoading(false);
     }
   };
@@ -198,10 +243,6 @@ function App() {
      ========================================================= */
 
   const resetDiagnosis = () => {
-    if (preview) {
-      URL.revokeObjectURL(preview);
-    }
-
     setSelectedFile(null);
     setPreview(null);
     setResult(null);
@@ -238,17 +279,53 @@ function App() {
   );
 
   /* =========================================================
-     RENDER
+     NAVIGATION
+     ========================================================= */
+
+  const navigate = (nextPage) => {
+    setPage(nextPage);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  const refreshAlerts = async () => {
+    setRefreshingAlerts(true);
+    try {
+      const data = await fetchAlerts();
+      setAlerts(data);
+      setAlertsError("");
+    } catch {
+      setAlertsError("Could not sync alerts. Check the backend connection and retry.");
+      pushEvent("SYNC ERROR", "Could not refresh the expert alert queue");
+    } finally {
+      setRefreshingAlerts(false);
+    }
+  };
+
+  const updateAlert = (updated) => {
+    setAlerts((current) => current.map((alert) => alert.id === updated.id ? { ...alert, ...updated } : alert));
+  };
+
+  const updatePreferences = (next) => {
+    setPreferences(next);
+    try {
+      localStorage.setItem("crop-doctor-preferences", JSON.stringify(next));
+    } catch {
+      // Keep the selected preference for this session when storage is unavailable.
+    }
+  };
+
+  /* =========================================================
+     MAIN RENDER
      ========================================================= */
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell palette-${preferences.palette} ${preferences.motion ? "motion-on" : "motion-off"}`}>
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
-
-      {/* =====================================================
-          TOP BAR
-          ===================================================== */}
 
       <header className="topbar">
         <div className="brand-wrap">
@@ -277,119 +354,70 @@ function App() {
           />
 
           <span>
-            {socketState === "live"
-              ? "REALTIME LINK"
-              : "LINKING..."}
+            {socketState === "live" ? "REALTIME LINK" : socketState === "offline" ? "RECONNECTING" : "LINKING..."}
           </span>
 
-          <em>V6.0</em>
+          <em>{modelState === "loaded" || modelState === "available" ? `MODEL ${modelState.toUpperCase()}` : modelState.toUpperCase()}</em>
         </div>
       </header>
 
-      {/* =====================================================
-          MAIN DASHBOARD
-          ===================================================== */}
+      <Navigation
+        page={page}
+        onNavigate={navigate}
+        stats={stats}
+      />
 
-      <main className="dashboard">
-
-        {/* ===================================================
-            HERO
-            =================================================== */}
-
-        <section className="hero-panel">
-          <div className="hero-copy">
-            <div className="eyebrow">
-              AI FIELD INTELLIGENCE / 038 CLASSIFIERS
-            </div>
-
-            <h1>
-              See the disease.
-              <br />
-              <span>Stop it early.</span>
-            </h1>
-
-            <p>
-              Upload a crop image and activate the V6
-              vision engine. Diagnosis, confidence
-              telemetry and expert escalation arrive as
-              one live diagnostic stream.
-            </p>
-
-            <div className="hero-pills">
-              <span>
-                ● EFFICIENTNETV2-S
-              </span>
-
-              <span>
-                ● 38 CLASSES
-              </span>
-
-              <span>
-                ● REALTIME ALERTS
-              </span>
-            </div>
-          </div>
-
-          <Scanner
-            preview={preview}
-            loading={loading}
+      <main className="dashboard page-with-navigation">
+        {page === "dashboard" && (
+          <DashboardPage
+            alerts={alerts}
+            events={events}
+            stats={stats}
+            socketState={socketState}
+            backendState={backendState}
+            modelState={modelState}
+            alertsError={alertsError}
+            onNavigate={navigate}
+            result={result}
           />
-        </section>
+        )}
 
-        {/* ===================================================
-            INPUT + INFERENCE PIPELINE
-            =================================================== */}
-
-        <section className="workspace">
-          <SpecimenInput
+        {page === "scanner" && (
+          <ScannerPage
             selectedFile={selectedFile}
-            error={error}
+            preview={preview}
+            result={result}
             loading={loading}
+            error={error}
+            socketState={socketState}
+            events={events}
+            alerts={alerts}
+            stats={stats}
+            scanStep={scanStep}
             inputRef={inputRef}
             onFileChange={handleFileChange}
             onDiagnose={diagnoseCrop}
             onReset={resetDiagnosis}
           />
-
-          <InferencePipeline
-            scanStep={scanStep}
-          />
-        </section>
-
-        {/* ===================================================
-            DIAGNOSIS RESULT
-            =================================================== */}
-
-        {result && (
-          <DiagnosisResult
-            result={result}
-          />
         )}
 
-        {/* ===================================================
-            MONITOR GRID
-            =================================================== */}
+        {page === "expert" && (
+          <ExpertCenter alerts={alerts} onRefresh={refreshAlerts} refreshing={refreshingAlerts} onAlertUpdated={updateAlert} loadError={alertsError} loading={loadingAlerts} />
+        )}
 
-        <MonitorGrid
-          result={result}
-          socketState={socketState}
-          events={events}
-          alerts={alerts}
-          stats={stats}
-        />
+        {page === "analytics" && (
+          <AnalyticsPage alerts={alerts} history={diagnosisHistory} events={events} onNavigate={navigate} />
+        )}
 
-        {/* ===================================================
-            FIELD RESPONSE
-            =================================================== */}
+        {page === "crops" && <CropHealthPage onNavigate={navigate} />}
 
-        <FieldResponse
-          result={result}
-        />
+        {page === "model" && <ModelIntelligencePage history={diagnosisHistory} />}
+
+        {page === "settings" && (
+          <SettingsPage preferences={preferences} onChange={updatePreferences} socketState={socketState} onRefresh={refreshAlerts} refreshing={refreshingAlerts} alertSyncError={alertsError} />
+        )}
+
       </main>
-
-      {/* =====================================================
-          FOOTER
-          ===================================================== */}
 
       <footer>
         <span>CROP DOCTOR AI</span> / V6
@@ -400,6 +428,10 @@ function App() {
     </div>
   );
 }
+
+/* ===========================================================
+   DASHBOARD PAGE
+   =========================================================== */
 
 /* ===========================================================
    REALTIME EVENT SUMMARY
