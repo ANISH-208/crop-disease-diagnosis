@@ -1,6 +1,12 @@
-export const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "/api" : "http://127.0.0.1:8000")).replace(/\/+$/, "");
+// The Vercel frontend and API are deployed together. Keep production calls on
+// this origin so an old VITE_API_URL value cannot send requests back to Render.
+export const API_URL = (import.meta.env.PROD
+  ? "/api"
+  : import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 
 function websocketUrl() {
+  // Vercel Functions do not provide persistent WebSocket connections.
+  if (import.meta.env.PROD) return "";
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
   const url = new URL(`${API_URL}/ws`, window.location.origin);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";

@@ -354,7 +354,7 @@ function App() {
           />
 
           <span>
-            {socketState === "live" ? "REALTIME LINK" : socketState === "offline" ? "RECONNECTING" : "LINKING..."}
+            {socketState === "live" ? "REALTIME LINK" : socketState === "rest" ? "API LINK" : socketState === "offline" ? "RECONNECTING" : "LINKING..."}
           </span>
 
           <em>{modelState === "loaded" || modelState === "available" ? `MODEL ${modelState.toUpperCase()}` : modelState.toUpperCase()}</em>

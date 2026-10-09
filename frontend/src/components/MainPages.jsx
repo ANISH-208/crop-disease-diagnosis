@@ -256,6 +256,7 @@ export function ScannerPage({
   loading,
   error,
   socketState,
+  backendState,
   events,
   alerts,
   stats,
@@ -280,9 +281,8 @@ export function ScannerPage({
           </h1>
 
           <p>
-            Upload a crop image and activate the V6
-            vision engine. The complete diagnostic pipeline
-            remains synchronized with the backend in real time.
+            Upload a crop image and send it to the V6
+            vision API for a complete diagnostic report.
           </p>
         </div>
 
@@ -297,7 +297,9 @@ export function ScannerPage({
 
           {socketState === "live"
             ? "BACKEND LINK ACTIVE"
-            : "CONNECTING TO BACKEND"}
+            : socketState === "rest"
+              ? backendState === "healthy" ? "API CONNECTED" : "CHECKING API"
+              : "CONNECTING TO BACKEND"}
         </div>
       </div>
 

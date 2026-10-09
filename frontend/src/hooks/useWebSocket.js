@@ -6,6 +6,11 @@ export default function useWebSocket({
   onStatusChange,
 }) {
   useEffect(() => {
+    if (!WS_URL) {
+      onStatusChange("rest");
+      return undefined;
+    }
+
     let ws;
     let retryTimer;
     let alive = true;
