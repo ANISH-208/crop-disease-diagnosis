@@ -1,151 +1,25 @@
-export default function DiagnosisResult({ result }) {
-  const topPredictions = result?.top_predictions || [];
+import { translate as t, displayName } from "../i18n";
 
-  const confidence = Math.min(100, Math.max(0, Number(result?.confidence || 0)));
+export default function DiagnosisResult({ result, language = "en", onCheckAnother }) {
+  const healthy = String(result?.diagnosis || "").toLowerCase() === "healthy";
+  const steps = Array.isArray(result?.prevention) ? result.prevention : [];
+  const text = (key) => t(language, key);
 
-  const circumference = 2 * Math.PI * 54;
-
-  const dash = (confidence / 100) * circumference;
-
-  return (
-    <section className="diagnosis-grid">
-
-      {/* ===================================================
-          DIAGNOSTIC SIGNATURE
-          =================================================== */}
-
-      <div className="diagnosis-card glass main-diagnosis">
-        <div className="section-head">
-          <span>03 / DIAGNOSTIC SIGNATURE</span>
-
-          <b className={confidence >= 80 ? "success" : "confidence-caution"}>
-            {confidence >= 80 ? "TOP CLASS PREDICTION" : "LOW CONFIDENCE · VERIFY"}
-          </b>
-        </div>
-
-        <div className="diagnosis-layout">
-
-          {/* CONFIDENCE RING */}
-
-          <div className="confidence-ring">
-            <svg viewBox="0 0 120 120">
-              <circle
-                className="ring-bg"
-                cx="60"
-                cy="60"
-                r="54"
-              />
-
-              <circle
-                className="ring-value"
-                cx="60"
-                cy="60"
-                r="54"
-                style={{
-                  strokeDasharray: `${dash} ${circumference}`,
-                }}
-              />
-            </svg>
-
-            <div>
-              <strong>
-                {confidence.toFixed(2)}%
-              </strong>
-
-              <span>CONFIDENCE</span>
-            </div>
-          </div>
-
-          {/* DIAGNOSIS INFORMATION */}
-
-          <div className="diagnosis-copy">
-            <small>
-              {result.crop?.toUpperCase()}
-            </small>
-
-            <h2>{result.diagnosis || "Unclassified image"}</h2>
-
-            <p>{result.symptoms || "Detailed symptom metadata is not available for this class."}</p>
-
-            <div className="tag-row">
-              <span>
-                SEVERITY:{" "}
-                {result.severity?.toUpperCase()}
-              </span>
-
-              <span>
-                MODEL:{" "}
-                {result.model_version || "V6"}
-              </span>
-              <span>{result.expert_review ? "EXPERT REVIEW ADVISED" : "NO EXPERT ESCALATION"}</span>
-              {result.alert?.id && <span>ALERT: {result.alert.status || "PENDING"}</span>}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ===================================================
-          TOP INFERENCE SIGNALS
-          =================================================== */}
-
-      <div className="diagnosis-card glass top-card">
-        <div className="section-head">
-          <span>TOP INFERENCE SIGNALS</span>
-          <b>TOP 03</b>
-        </div>
-
-        <div className="predictions">
-          {topPredictions.length ? topPredictions.map((prediction, index) => {
-            const pct = Number(
-              prediction.confidence || 0
-            );
-
-            return (
-              <div
-                className="prediction"
-                key={`${prediction.class}-${index}`}
-              >
-                <div className="pred-row">
-                  <span>
-                    0{index + 1}
-                  </span>
-
-                  <strong>
-                    {prettyLabel(prediction.class)}
-                  </strong>
-
-                  <b>
-                    {pct.toFixed(2)}%
-                  </b>
-                </div>
-
-                <div className="bar">
-                  <i
-                    style={{
-                      width: `${Math.max(
-                        pct,
-                        0.5
-                      )}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          }) : <p className="empty">Top prediction breakdown is unavailable for this response.</p>}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function prettyLabel(label) {
-  if (!label) return "Unknown";
-
-  const [crop, disease] =
-    label.split("___");
-
-  return `${crop || "Unknown"} / ${(disease || "")
-    .replaceAll("_", " ")
-    .replaceAll("(", "")
-    .replaceAll(")", "")}`;
+  return <section className="diagnosis-result" aria-labelledby="result-title" aria-live="polite">
+    <div className="result-banner">
+      <span className={`result-icon ${healthy ? "healthy" : "attention"}`} aria-hidden="true">{healthy ? "✓" : "!"}</span>
+      <div><span className="step-label">{text("checkComplete")}</span><h2 id="result-title">{healthy ? text("noDiseaseDetected") : text("possibleDetected")}</h2><p>{displayName(result.crop)} · {displayName(result.diagnosis)}</p></div>
+    </div>
+    {result.expert_review && <p className="expert-note" role="note">{text("expertAdvice")}</p>}
+    {healthy && <p className="caveat-note">{text("healthyCaveat")}</p>}
+    <div className="result-details">
+      <article><span className="step-label">{text("whatNoticed")}</span><p>{result.symptoms || text("resultUnavailable")}</p></article>
+      <article><span className="step-label">{text("severity").toUpperCase()}</span><p className={`severity-text ${String(result.severity).toLowerCase()}`}>{displayName(result.severity) || "Not provided"}</p></article>
+      <article><span className="step-label">{text("aiConfidence")}</span><p>{Number(result.confidence).toFixed(1)}%</p><small>{text("confidenceNote")}</small></article>
+    </div>
+    <div className="result-next"><h3>{text("whatNext")}</h3>{steps.length ? <ol>{steps.map((step, index) => <li key={`${result.job_id || "result"}-${index}`}>{step}</li>)}</ol> : <p>{text("followUpExpert")}</p>}</div>
+    <p className="result-disclaimer">{text("resultHelp")}</p>
+    {result.created_at && <p className="saved-report-note" role="status">✓ {text("reportSaved")}</p>}
+    <button className="button button-primary" onClick={onCheckAnother}>{text("startCheck")}</button>
+  </section>;
 }

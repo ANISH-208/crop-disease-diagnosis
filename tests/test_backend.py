@@ -63,12 +63,15 @@ class ApiContractTests(unittest.TestCase):
         root_status, root = asyncio.run(asgi_request("GET", "/"))
         health_status, health = asyncio.run(asgi_request("GET", "/health"))
         alerts_status, alert_list = asyncio.run(asgi_request("GET", "/alerts"))
+        reports_status, report_list = asyncio.run(asgi_request("GET", "/reports", headers=[(b"x-report-key", b"r" * 32)]))
         self.assertEqual(root_status, 200)
         self.assertEqual(root["version"], main.app.version)
         self.assertEqual(health_status, 200)
         self.assertIn("database", health)
         self.assertEqual(alerts_status, 200)
         self.assertEqual(alert_list["count"], len(alert_list["alerts"]))
+        self.assertEqual(reports_status, 200)
+        self.assertEqual(report_list["count"], len(report_list["reports"]))
 
     def test_root_endpoint_returns_api_version(self):
         response = main.home()
@@ -122,6 +125,18 @@ class ApiContractTests(unittest.TestCase):
                 updated = alerts.update_alert_status(created["id"], "in_review")
                 self.assertEqual(updated["status"], "in_review")
                 self.assertEqual(alerts.get_alerts("in_review")[0]["id"], created["id"])
+                report = alerts.save_report({
+                    "job_id": "report-1", "crop": "Tomato", "diagnosis": "Early Blight",
+                    "confidence": 78.2, "severity": "Moderate", "symptoms": "Leaf spots",
+                    "prevention": ["Remove affected leaves."], "expert_review": True,
+                    "alert": created,
+                }, "report-key-" + "r" * 32)
+                saved = alerts.get_reports("report-key-" + "r" * 32)
+                other_owner = alerts.get_reports("another-report-key-" + "r" * 32)
+                self.assertEqual(report["id"], "report-1")
+                self.assertEqual(saved[0]["prevention"], ["Remove affected leaves."])
+                self.assertEqual(saved[0]["status"], "in_review")
+                self.assertEqual(other_owner, [])
 
     def test_upload_rejects_wrong_media_type(self):
         upload = UploadFile(
@@ -179,8 +194,9 @@ class ApiContractTests(unittest.TestCase):
             with patch.object(main, "UPLOAD_DIR", Path(directory)), \
                  patch.object(main, "diagnose_image", return_value=predicted), \
                  patch.object(main, "create_alert", return_value=alert), \
+                 patch.object(main, "save_report", side_effect=lambda report, _key: {**report, "created_at": "2026-01-01T00:00:00+00:00"}), \
                  patch.object(main.events, "broadcast", broadcaster):
-                response = asyncio.run(main.diagnose(upload))
+                response = asyncio.run(main.diagnose(upload, None))
             self.assertTrue(response["alert_created"])
             self.assertEqual(response["alert"], alert)
             self.assertTrue((Path(directory) / response["filename"]).is_file())
@@ -208,10 +224,14 @@ class ApiContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, \
              patch.object(main, "UPLOAD_DIR", Path(directory)), \
              patch.object(main, "diagnose_image", return_value=diagnosis), \
+             patch.object(main, "save_report", side_effect=lambda report, _key: {**report, "created_at": "2026-01-01T00:00:00+00:00"}), \
              patch.object(main.events, "broadcast", broadcaster):
             status_code, response = asyncio.run(asgi_request(
                 "POST", "/diagnose", body,
-                [(b"content-type", b"multipart/form-data; boundary=cropdoctor-boundary")],
+                [
+                    (b"content-type", b"multipart/form-data; boundary=cropdoctor-boundary"),
+                    (b"x-report-key", b"r" * 32),
+                ],
             ))
         self.assertEqual(status_code, 200, response)
         self.assertEqual(response["crop"], "Apple")

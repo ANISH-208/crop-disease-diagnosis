@@ -1,25 +1,28 @@
 # Crop Doctor AI
 
-Crop Doctor AI is an AI-assisted crop leaf screening application. A React interface sends JPG/PNG images to a FastAPI service, which runs a trained EfficientNetV2-S classifier through LiteRT, enriches the prediction with crop guidance, and routes cases for expert review. SQLite stores review alerts and WebSockets publish diagnosis and status events.
+Crop Doctor AI is a mobile-first crop leaf screening application. A farmer can take a photo or choose a JPG/PNG, review it, then send it to a FastAPI service that runs the trained EfficientNetV2-S classifier through LiteRT. The app returns crop guidance, stores browser-scoped reports, and routes uncertain cases for expert review.
 
 The application is a portfolio and research prototype. It is not a substitute for local agronomic expertise or laboratory diagnosis.
 
 ## Features
 
-- Leaf image diagnosis across 38 PlantVillage classes
-- Confidence score, top predictions, symptoms, and prevention guidance
+- Camera-first photo check and gallery upload across 38 PlantVillage classes
+- Farmer-readable results, symptoms, severity, and backend-provided next steps
+- Browser-scoped reports from actual diagnosis responses
 - Expert queue with pending, in-review, and resolved states
 - Analytics, crop reference, model card, and settings screens
-- SQLite alert storage locally and live alert updates
+- SQLite alert and report storage locally; WebSockets are used in local development
 - Upload validation, configurable limits, and model readiness reporting
+- Installable PWA shell with a static offline fallback; diagnosis still requires internet
 
 ## Architecture
 
 ```text
-React + Vite ── REST / WebSocket ── FastAPI
+React + Vite / PWA ── REST ── FastAPI
+                  └── WebSocket (local development)
                                       ├── EfficientNetV2-S LiteRT (.tflite / Git LFS)
                                       ├── Disease metadata (38 classes)
-                                      └── SQLite expert alerts
+                                      └── SQLite alerts and browser-scoped reports
 ```
 
 The model accepts 224 × 224 RGB images and returns a softmax score for each of 38 classes. The backend scales scores to percentages and adds static metadata from `backend/disease_data.py`. Cases are escalated when the disease metadata requests expert review or the top score is below the configured confidence threshold.
@@ -62,9 +65,11 @@ Open the Vite URL printed in the terminal (normally `http://localhost:5173`). Th
 
 ## Deploy on Vercel
 
-The root `vercel.json` defines two services in one Vercel project: the FastAPI API at `/api/*` and the Vite frontend at `/`. Set the Vercel project's root directory to `.` and deploy the `main` branch. Vercel's Python runtime installs the lightweight dependencies from `requirements.txt`; the API uses the 22 MB LiteRT artifact. Keep the frontend's `VITE_API_URL` unset or set it to `/api` and remove any old `VITE_WS_URL` override.
+The root `vercel.json` defines two services in one Vercel project: the FastAPI API at `/api/*` and the Vite frontend at `/`. Set the Vercel project's root directory to `.` and deploy the `main` branch. Vercel's Python runtime installs the lightweight dependencies from `requirements.txt`; the API uses the 22 MB LiteRT artifact. Production frontend builds always call the same-origin `/api` route, even if an old `VITE_API_URL` or `VITE_WS_URL` value remains in project settings. Vercel Functions do not provide persistent WebSocket connections, so production uses REST requests.
 
-Vercel functions have an ephemeral filesystem. This demo uses `/tmp` for its SQLite database and uploaded files, so expert alerts and attached images are not durable across cold starts. Configure a persistent database and object storage before relying on long-term case records.
+Vercel functions have an ephemeral filesystem. This demo uses `/tmp` for its SQLite database and uploaded files, so reports and expert alerts can be lost across cold starts. Each browser creates a random report key and sends it with diagnoses; only its hash is stored, so `/reports` returns only reports associated with that browser key. Clearing browser storage loses access to those reports. Configure a persistent database and object storage before relying on long-term case records.
+
+The web app can be installed as a PWA on supported browsers. Its service worker caches only the static app shell and assets, never API responses or crop uploads. Offline mode can open cached screens, but image diagnosis needs an internet connection. A PWA is not a native Android or iOS app; store distribution still requires a native wrapper (such as Capacitor), signing, device testing, privacy disclosures, and store review.
 
 ### Environment variables
 
@@ -88,22 +93,23 @@ VITE_API_URL=http://127.0.0.1:8000
 VITE_WS_URL=ws://127.0.0.1:8000/ws
 ```
 
-If `VITE_WS_URL` is omitted, the frontend derives it from `VITE_API_URL` (including `wss` for HTTPS).
+In local development, `VITE_WS_URL` can point to the FastAPI WebSocket. Production ignores both variables and uses `/api` on the same Vercel origin; Vercel serverless functions do not keep persistent WebSocket connections.
 
 ## API
 
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/` | Service information |
-| `GET` | `/health` | API, model artifact, and WebSocket status |
+| `GET` | `/health` | API, model artifact, and database status |
 | `GET` | `/diseases` | Supported model classes and field guidance |
 | `POST` | `/diagnose` | Diagnose a multipart `file` upload |
+| `GET` | `/reports` | List diagnoses for the `X-Report-Key` browser key |
 | `GET` | `/alerts` | List alerts; optional `status` filter |
 | `GET` | `/alerts/{alert_id}` | Get one alert |
 | `PATCH` | `/alerts/{alert_id}` | Update alert status |
 | WebSocket | `/ws` | Receive normalized realtime events |
 
-Example diagnosis request:
+Example diagnosis request (the browser sends its random `X-Report-Key` automatically):
 
 ```bash
 curl -X POST http://127.0.0.1:8000/diagnose \
@@ -136,7 +142,7 @@ python -m unittest discover -s tests -v
 python -m compileall -q backend tests
 ```
 
-The backend suite exercises API contracts, alert persistence/status transitions, upload validation and limits, disease metadata coverage, and a real held-out PlantVillage inference when the dataset is installed locally.
+The backend suite exercises API contracts, alert/report persistence and status transitions, upload validation and limits, disease metadata coverage, and a real held-out PlantVillage inference when the dataset is installed locally.
 
 Optional ML/training dependencies are listed separately:
 
@@ -171,8 +177,10 @@ tests/            Backend and model integration regressions
 - Raw PlantVillage images, the generated manifest, uploads, SQLite databases, virtual environments, build output, and checkpoints are local/generated data and are ignored by Git.
 - The model is trained on a controlled image dataset and may be unreliable on field imagery or unsupported conditions.
 - Confidence is a model score, not a calibrated probability of disease.
-- The application has no user authentication, multi-user permissions, or expert identity/audit trail. Deploy only behind appropriate access controls.
-- Alert images are stored on disk for review linkage; add a retention policy before operating with real farm data.
+- The application has no login system. Reports are scoped by a random key stored in that browser, not by a verified farmer identity; clearing site storage loses access to them.
+- Vercel's SQLite and uploaded files use ephemeral `/tmp` storage and are not durable across cold starts. Use a persistent database and define photo retention before a real pilot.
+- The interface is localization-ready but only English copy is currently provided. Diagnosis labels and guidance come from the existing English dataset metadata.
+- The PWA shell can be installed where supported, but native Android/iOS packaging and app-store submission have not been completed.
 
 ## Future improvements
 

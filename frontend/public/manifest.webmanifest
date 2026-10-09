@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "Crop Doctor AI",
+  "short_name": "Crop Doctor",
+  "description": "Check a crop leaf photo and get an AI-assisted result.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f8f2",
+  "theme_color": "#17482a",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    { "src": "/crop-doctor-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

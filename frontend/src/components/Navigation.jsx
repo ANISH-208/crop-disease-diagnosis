@@ -1,99 +1,41 @@
-function Navigation({ page, onNavigate, stats }) {
-  const navigation = [
-    {
-      id: "dashboard",
-      icon: "⌂",
-      label: "Dashboard",
-      meta: "OVERVIEW",
-    },
-    {
-      id: "scanner",
-      icon: "⌁",
-      label: "AI Scanner",
-      meta: "DIAGNOSIS",
-    },
-    {
-      id: "expert",
-      icon: "!",
-      label: "Expert Center",
-      meta: "ALERTS",
-      badge: stats.pending,
-    },
-    {
-      id: "analytics",
-      icon: "◫",
-      label: "Analytics",
-      meta: "INSIGHTS",
-    },
-    {
-      id: "crops",
-      icon: "✦",
-      label: "Crop Health",
-      meta: "KNOWLEDGE",
-    },
-    {
-      id: "model",
-      icon: "◉",
-      label: "Model Intelligence",
-      meta: "V6 ENGINE",
-    },
-    {
-      id: "settings",
-      icon: "⚙",
-      label: "Settings",
-      meta: "SYSTEM",
-    },
-  ];
+import { translate as t } from "../i18n";
 
-  return (
-    <aside className="navigation-panel">
-      <div className="nav-heading">
-        <span>CONTROL CENTER</span>
-        <i>V6</i>
-      </div>
+const primaryItems = [
+  { id: "home", icon: "⌂", label: "home" },
+  { id: "scanner", icon: "◎", label: "checkCrop", action: true },
+  { id: "reports", icon: "▤", label: "reports" },
+  { id: "help", icon: "?", label: "help" },
+];
 
-      <nav className="navigation-list">
-        {navigation.map((item) => (
-          <button
-            key={item.id}
-            className={`navigation-item ${
-              page === item.id ? "active" : ""
-            }`}
-            aria-current={page === item.id ? "page" : undefined}
-            onClick={() => onNavigate(item.id)}
-          >
-            <span className="navigation-icon">
-              {item.icon}
-            </span>
+const secondaryItems = [
+  { id: "dashboard", label: "moreOverview" },
+  { id: "expert", label: "moreExpertQueue" },
+  { id: "analytics", label: "moreAnalysisSummary" },
+  { id: "crops", label: "moreCropGuide" },
+  { id: "model", label: "moreAboutModel" },
+  { id: "settings", label: "moreConnectionSettings" },
+];
 
-            <span className="navigation-copy">
-              <strong>{item.label}</strong>
-              <small>{item.meta}</small>
-            </span>
-
-            {item.badge > 0 && (
-              <span className="navigation-badge">
-                {item.badge}
-              </span>
-            )}
-
-            <span className="navigation-arrow">
-              →
-            </span>
-          </button>
-        ))}
-      </nav>
-
-      <div className="navigation-status">
-        <span className="navigation-status-dot" />
-
-        <div>
-          <strong>SYSTEM READY</strong>
-          <small>AI diagnostic network active</small>
-        </div>
-      </div>
-    </aside>
-  );
+export default function Navigation({ page, onNavigate, language = "en" }) {
+  const text = (key) => t(language, key);
+  const moreActive = secondaryItems.some((item) => item.id === page) || page === "dashboard";
+  return <>
+    <nav className="farmer-navigation desktop-navigation" aria-label="Main navigation">
+      <div className="desktop-primary">{primaryItems.map((item) => <NavButton key={item.id} item={item} active={page === item.id} text={text} onNavigate={onNavigate} />)}</div>
+      <details className={`more-menu ${moreActive ? "more-active" : ""}`}>
+        <summary><span aria-hidden="true">⋯</span>{text("more")}</summary>
+        <div className="more-menu-panel"><strong>{text("advanced")}</strong>{secondaryItems.map((item) => <button key={item.id} aria-current={page === item.id ? "page" : undefined} onClick={() => onNavigate(item.id)}>{text(item.label)}</button>)}</div>
+      </details>
+    </nav>
+    <nav className="farmer-navigation mobile-navigation" aria-label="Main navigation">
+      {primaryItems.map((item) => <NavButton key={item.id} item={item} active={page === item.id} text={text} onNavigate={onNavigate} />)}
+    </nav>
+  </>;
 }
 
-export default Navigation;
+function NavButton({ item, active, text, onNavigate }) {
+  return <button type="button" className={`farmer-nav-item ${item.action ? "nav-action" : ""} ${active ? "active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => onNavigate(item.id)}>
+    <span className="farmer-nav-icon" aria-hidden="true">{item.icon}</span>
+    <span>{text(item.label)}</span>
+  </button>;
+}

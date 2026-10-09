@@ -8,14 +8,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Header, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend import model
-from backend.alerts import create_alert, get_alert, get_alerts, get_connection, update_alert_status
+from backend.alerts import create_alert, get_alert, get_alerts, get_connection, get_reports, save_report, update_alert_status
 from backend.config import ALLOWED_ORIGINS, CONFIDENCE_THRESHOLD, MAX_IMAGE_PIXELS, MAX_UPLOAD_BYTES, UPLOAD_DIR
 from backend.diagnosis import diagnose_image
 from backend.disease_data import DISEASE_DATA
@@ -47,7 +47,7 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "X-Report-Key"],
 )
 
 
@@ -96,6 +96,7 @@ class AlertStatusUpdate(BaseModel):
 
 class DiagnosisResponse(BaseModel):
     job_id: str
+    created_at: str | None = None
     message: str
     filename: str
     original_filename: str
@@ -218,7 +219,7 @@ async def realtime_socket(websocket: WebSocket):
 
 
 @app.post("/diagnose", response_model=DiagnosisResponse)
-async def diagnose(file: UploadFile = File(...)):
+async def diagnose(file: UploadFile = File(...), report_key: str | None = Header(default=None, alias="X-Report-Key")):
     if (file.content_type or "").lower() not in ALLOWED_IMAGE_TYPES:
         await file.close()
         raise HTTPException(status_code=400, detail="Upload a JPG or PNG image.")
@@ -263,6 +264,9 @@ async def diagnose(file: UploadFile = File(...)):
             "alert": alert,
             "status": "diagnosed",
         }
+        if report_key:
+            stored_report = await asyncio.to_thread(save_report, response, report_key)
+            response["created_at"] = stored_report["created_at"]
         await events.broadcast("diagnosis_completed", {"job_id": job_id, "diagnosis": response})
         if alert:
             await events.broadcast("alert_created", {"job_id": job_id, "alert": alert})
@@ -282,6 +286,15 @@ async def diagnose(file: UploadFile = File(...)):
 def alerts(status: Literal["pending", "in_review", "resolved"] | None = Query(default=None)):
     current = get_alerts(status)
     return {"count": len(current), "alerts": current}
+
+
+@app.get("/reports")
+def reports(
+    report_key: str = Header(..., min_length=32, alias="X-Report-Key"),
+    limit: int = Query(default=50, ge=1, le=100),
+):
+    current = get_reports(report_key, limit)
+    return {"count": len(current), "reports": current}
 
 
 @app.get("/alerts/{alert_id}")

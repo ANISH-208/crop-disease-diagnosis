@@ -1,9 +1,5 @@
-import Scanner from "./Scanner";
-import SpecimenInput from "./SpecimenInput";
-import InferencePipeline from "./InferencePipeline";
 import DiagnosisResult from "./DiagnosisResult";
-import MonitorGrid from "./MonitorGrid";
-import FieldResponse from "./FieldResponse";
+import { translate as t } from "../i18n";
 
 export function DashboardPage({
   alerts,
@@ -255,104 +251,31 @@ export function ScannerPage({
   result,
   loading,
   error,
-  socketState,
   backendState,
-  events,
-  alerts,
-  stats,
-  scanStep,
-  inputRef,
-  onFileChange,
+  language,
+  onTakePhoto,
+  onChoosePhoto,
   onDiagnose,
   onReset,
+  onRetryConnection,
 }) {
+  const text = (key) => t(language, key);
   return (
-    <section className="page-view">
-      <div className="scanner-page-heading">
-        <div>
-          <div className="eyebrow">
-            COMPUTER VISION / CROP HEALTH
-          </div>
-
-          <h1>
-            Diagnose the
-            <br />
-            <span>unknown.</span>
-          </h1>
-
-          <p>
-            Upload a crop image and send it to the V6
-            vision API for a complete diagnostic report.
-          </p>
+    <section className="farmer-page scan-page page-view" aria-labelledby="scan-title">
+      <div className="page-intro"><span className="eyebrow">{text("stepPhoto")}</span><h1 id="scan-title">{text("scanTitle")}</h1><p>{text("scanIntro")}</p><span className={`connection-chip ${backendState === "healthy" ? "is-ready" : backendState === "offline" || backendState === "degraded" ? "is-error" : ""}`} role="status"><i aria-hidden="true" />{backendState === "healthy" ? text("serviceReady") : backendState === "offline" || backendState === "degraded" ? text("connectionProblem") : text("checkingService")}</span></div>
+      <section className="content-card photo-review" aria-label="Crop photo review">
+        <div className={`photo-preview ${preview ? "has-photo" : ""}`}>
+          {preview ? <img src={preview} alt="Preview of the crop photo you selected" /> : <div className="photo-placeholder"><span aria-hidden="true">◎</span><strong>{text("oneLeaf")}</strong><small>{text("supportedPhoto")}</small></div>}
         </div>
-
-        <div className="scanner-page-status">
-          <span
-            className={`live-dot ${
-              socketState === "live"
-                ? "on"
-                : ""
-            }`}
-          />
-
-          {socketState === "live"
-            ? "BACKEND LINK ACTIVE"
-            : socketState === "rest"
-              ? backendState === "healthy" ? "API CONNECTED" : "CHECKING API"
-              : "CONNECTING TO BACKEND"}
-        </div>
-      </div>
-
-      <section className="hero-panel scanner-hero">
-        <div className="hero-copy">
-          <div className="hero-pills">
-            <span>● EFFICIENTNETV2-S</span>
-            <span>● 38 CLASSES</span>
-            <span>● REALTIME ALERTS</span>
-          </div>
-        </div>
-
-        <Scanner
-          preview={preview}
-          loading={loading}
-        />
+        {selectedFile && <p className="selected-photo-name">{selectedFile.name} · {(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>}
+        {!selectedFile ? <div className="photo-actions"><button className="button button-primary" onClick={onTakePhoto}><span aria-hidden="true">◎</span>{text("takePhoto")}</button><button className="button button-secondary" onClick={onChoosePhoto}><span aria-hidden="true">▧</span>{text("choosePhoto")}</button></div> : <div className="photo-actions"><button className="button button-secondary" onClick={onTakePhoto} disabled={loading}>{text("retake")}</button><button className="button button-secondary" onClick={onChoosePhoto} disabled={loading}>{text("chooseAnother")}</button></div>}
+        {error && <div className="inline-message" role="alert">{error}</div>}
+        {selectedFile && !result && <button className="button button-primary analyze-button" disabled={loading || backendState !== "healthy"} onClick={onDiagnose}>{loading ? <><span className="spinner" aria-hidden="true" />{text("checking")}</> : text("photoReview")}</button>}
+        {(backendState === "offline" || backendState === "degraded") && <div className="offline-hint" role="status">{text("photoStillHere")} <button type="button" className="inline-retry" onClick={onRetryConnection}>{text("retry")}</button></div>}
+        <p className="photo-consent">{text("photoSentOnlyOnAction")}</p>
       </section>
-
-      <section className="workspace">
-        <SpecimenInput
-          selectedFile={selectedFile}
-          error={error}
-          loading={loading}
-          inputRef={inputRef}
-          onFileChange={onFileChange}
-          onDiagnose={onDiagnose}
-          onReset={onReset}
-        />
-
-        <InferencePipeline
-          scanStep={scanStep}
-          result={result}
-          loading={loading}
-        />
-      </section>
-
-      {result && (
-        <DiagnosisResult
-          result={result}
-        />
-      )}
-
-      <MonitorGrid
-        result={result}
-        socketState={socketState}
-        events={events}
-        alerts={alerts}
-        stats={stats}
-      />
-
-      <FieldResponse
-        result={result}
-      />
+      <aside className="quick-tips content-card"><strong>{text("photoTips")}</strong><ul><li>{text("tipOne")}</li><li>{text("tipThree")}</li></ul></aside>
+      {result && <DiagnosisResult result={result} language={language} onCheckAnother={onReset} />}
     </section>
   );
 }

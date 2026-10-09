@@ -14,6 +14,23 @@ function websocketUrl() {
 }
 
 export const WS_URL = websocketUrl();
+let sessionReportKey;
+
+function getReportKey() {
+  if (sessionReportKey) return sessionReportKey;
+  try {
+    sessionReportKey = localStorage.getItem("crop-doctor-report-key");
+  } catch {
+    // Continue with a session-only key when browser storage is unavailable.
+  }
+  if (!sessionReportKey) {
+    if (!globalThis.crypto?.getRandomValues) throw new Error("Secure browser storage is unavailable. Open this app over HTTPS and try again.");
+    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(32));
+    sessionReportKey = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    try { localStorage.setItem("crop-doctor-report-key", sessionReportKey); } catch { /* Keep the key for this app session. */ }
+  }
+  return sessionReportKey;
+}
 
 async function readResponse(response, fallbackMessage) {
   const payload = await response.json().catch(() => ({}));
@@ -24,13 +41,31 @@ async function readResponse(response, fallbackMessage) {
   return payload;
 }
 
+async function request(url, options = {}, timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("The request took too long. Your photo is still here; try again when your connection is steady.", { cause: error });
+    }
+    if (error instanceof TypeError) {
+      throw new Error("Connection problem. Check your internet connection and try again.", { cause: error });
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 export async function fetchHealth() {
-  const response = await fetch(`${API_URL}/health`);
+  const response = await request(`${API_URL}/health`);
   return readResponse(response, "Could not reach the diagnosis service.");
 }
 
 export async function fetchAlerts() {
-  const response = await fetch(`${API_URL}/alerts`);
+  const response = await request(`${API_URL}/alerts`);
 
   const data = await readResponse(response, "Failed to fetch alerts.");
 
@@ -41,8 +76,14 @@ export async function fetchAlerts() {
       : [];
 }
 
+export async function fetchReports() {
+  const response = await request(`${API_URL}/reports`, { headers: { "X-Report-Key": getReportKey() } });
+  const data = await readResponse(response, "Could not load crop reports.");
+  return Array.isArray(data.reports) ? data.reports : [];
+}
+
 export async function fetchDiseases() {
-  const response = await fetch(`${API_URL}/diseases`);
+  const response = await request(`${API_URL}/diseases`);
   const data = await readResponse(response, "Could not load crop disease reference data.");
   return Array.isArray(data.classes) ? data.classes : [];
 }
@@ -51,10 +92,11 @@ export async function diagnoseImage(file) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_URL}/diagnose`, {
+  const response = await request(`${API_URL}/diagnose`, {
     method: "POST",
     body: formData,
-  });
+    headers: { "X-Report-Key": getReportKey() },
+  }, 90000);
 
   return readResponse(response, "Diagnosis request failed.");
 }

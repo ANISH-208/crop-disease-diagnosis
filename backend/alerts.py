@@ -1,3 +1,5 @@
+import hashlib
+import json
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -45,8 +47,96 @@ def initialize_database():
         """
     )
 
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS reports (
+            id TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL,
+            crop TEXT NOT NULL,
+            diagnosis TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            severity TEXT NOT NULL,
+            symptoms TEXT NOT NULL,
+            prevention_json TEXT NOT NULL,
+            expert_review INTEGER NOT NULL,
+            alert_id TEXT,
+            owner_hash TEXT
+        )
+        """
+    )
+
+    report_columns = {row["name"] for row in connection.execute("PRAGMA table_info(reports)").fetchall()}
+    if "owner_hash" not in report_columns:
+        connection.execute("ALTER TABLE reports ADD COLUMN owner_hash TEXT")
     connection.commit()
     connection.close()
+
+
+def _owner_hash(report_key: str) -> str:
+    return hashlib.sha256(report_key.encode("utf-8")).hexdigest()
+
+
+def save_report(report: dict, report_key: str) -> dict:
+    """Persist a completed diagnosis without storing the uploaded image."""
+    if len(report_key) < 32:
+        raise ValueError("A valid report key is required.")
+    created_at = datetime.now(timezone.utc).isoformat()
+    report_id = report["job_id"]
+    connection = get_connection()
+    try:
+        connection.execute(
+            """
+            INSERT OR REPLACE INTO reports (
+                id, created_at, crop, diagnosis, confidence, severity, symptoms,
+                prevention_json, expert_review, alert_id, owner_hash
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                report_id, created_at, report["crop"], report["diagnosis"],
+                report["confidence"], report["severity"], report["symptoms"],
+                json.dumps(report.get("prevention", [])),
+                int(bool(report.get("expert_review"))),
+                (report.get("alert") or {}).get("id"),
+                _owner_hash(report_key),
+            ),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    return {**report, "id": report_id, "created_at": created_at}
+
+
+def get_reports(report_key: str, limit: int = 100) -> list[dict]:
+    if len(report_key) < 32:
+        raise ValueError("A valid report key is required.")
+    connection = get_connection()
+    try:
+        rows = connection.execute(
+            """
+            SELECT reports.*, alerts.status AS alert_status
+            FROM reports LEFT JOIN alerts ON alerts.id = reports.alert_id
+            WHERE reports.owner_hash = ?
+            ORDER BY reports.created_at DESC LIMIT ?
+            """,
+            (_owner_hash(report_key), limit),
+        ).fetchall()
+    finally:
+        connection.close()
+    return [
+        {
+            "id": row["id"],
+            "created_at": row["created_at"],
+            "crop": row["crop"],
+            "diagnosis": row["diagnosis"],
+            "confidence": row["confidence"],
+            "severity": row["severity"],
+            "symptoms": row["symptoms"],
+            "prevention": json.loads(row["prevention_json"]),
+            "expert_review": bool(row["expert_review"]),
+            "status": row["alert_status"] or "completed",
+        }
+        for row in rows
+    ]
 
 
 # Initialize database when the backend starts
