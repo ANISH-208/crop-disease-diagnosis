@@ -1,28 +1,28 @@
 :root {
-  color-scheme: only light;
+  color-scheme: only dark;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #173421;
-  background: #f5f8f2;
+  color: #e7f1e7;
+  background: #0a130d;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --leaf-950: #10351f;
-  --leaf-900: #17482a;
-  --leaf-800: #225d37;
-  --leaf-700: #33764a;
-  --leaf-600: #4e935e;
-  --leaf-300: #cce1c4;
-  --leaf-100: #eef5e9;
-  --paper: #f5f8f2;
-  --ink: #173421;
-  --muted: #526b59;
-  --line: #d8e3d4;
-  --warning: #8d3d1e;
+  --leaf-950: #e2f0df;
+  --leaf-900: #c9e5c8;
+  --leaf-800: #75b77c;
+  --leaf-700: #8acc8e;
+  --leaf-600: #a5d79e;
+  --leaf-300: #45664a;
+  --leaf-100: #1d3223;
+  --paper: #0a130d;
+  --ink: #e7f1e7;
+  --muted: #b3c6b6;
+  --line: #2a4130;
+  --warning: #ffc08c;
 }
 
 * { box-sizing: border-box; }
 html { min-width: 320px; background: var(--paper); scroll-behavior: smooth; }
-html, body { color-scheme: only light; }
+html, body { color-scheme: only dark; }
 body { min-width: 320px; margin: 0; background: var(--paper); color: var(--ink); }
 button, select { font: inherit; }
 button { color: inherit; }
@@ -283,4 +283,60 @@ img { display: block; max-width: 100%; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* Deep forest surfaces with bright, legible crop guidance. */
+.skip-link { background: #17261b; }
+.farmer-header { background: #0d1911; box-shadow: 0 4px 16px #0005; }
+.connection-chip { background: #142219; }
+.brand-button strong { color: #edf7eb; }
+.language-picker select { background: #142219; color: var(--ink); }
+.desktop-navigation { background: #0d1911f2; }
+.farmer-nav-item:hover, .more-menu[open] summary, .more-menu.more-active summary { background: #203729; color: #e4f2e1; }
+.farmer-nav-item.active { background: #1b3524; border-color: #365a3e; color: #e4f2e1; }
+.farmer-nav-item.nav-action:hover, .farmer-nav-item.nav-action.active { background: #8acc8e; color: #102316; }
+.more-menu summary { color: #c0d2c2; }
+.more-menu-panel, .more-menu-panel button { background: #132118; color: #e7f1e7; }
+.more-menu-panel button:hover, .more-menu-panel button[aria-current="page"] { background: #203729; color: #e4f2e1; }
+.eyebrow, .step-label { color: #9acb9d; }
+.home-greeting p, .page-intro p, .photo-tips ul, .help-card ul, .report-body > p, .report-next ol, .result-next ol { color: #c2d1c4; }
+.check-card { background: linear-gradient(112deg, #12291a, #19452a 72%, #24623b); }
+.button-secondary { border-color: #45654a; background: #17261c; color: #d3ead0; }
+.button-secondary:hover:not(:disabled) { background: #223b29; }
+.content-card, .report-summary { background: #111e16; }
+.report-list li + li { border-color: #2a4130; }
+.report-summary:hover { background: #18291d; }
+.report-glyph.healthy, .result-icon.healthy { background: #25442d; color: #c4e5c0; }
+.report-glyph.attention, .result-icon.attention { background: #4a3020; color: #ffd4a8; }
+.tips-symbol, .help-icon { background: #1d3524; color: #a2d5a0; }
+.photo-preview { border-color: #547856; background: linear-gradient(140deg, #14251a, #1c3422); }
+.photo-preview.has-photo { background: #09130d; }
+.offline-hint, .inline-message, .expert-note { border-color: #bb8751; background: #3a2b1d; color: #ffe0b7; }
+.inline-retry { border-color: #b98a5c; background: #241d15; color: #ffe0b7; }
+.diagnosis-result { border-color: #35523b; background: #111e16; box-shadow: 0 8px 25px #0004; }
+.caveat-note { border-color: #75b77c; background: #1d3223; color: #dbefda; }
+.result-details article { border-color: #2b4431; background: #16241a; }
+.result-next ol { color: #d2dfd3; }
+.result-disclaimer, .confidence-caveat { border-color: #526b54; background: #1a281d; color: #cfdbce; }
+.report-card { background: #111e16; }
+.severity-pill { border-color: #45654a; background: #203729; color: #d3ead0; }
+.empty-reports, .error-card { background: #111e16; }
+.error-card { border-color: #704838; }
+.error-card p { color: #e6c1a5; }
+.advanced-tools { background: #111e16; }
+.advanced-tools summary { color: #d3ead0; }
+.advanced-tool-links button { background: #17261c; color: #d3ead0; }
+.farmer-footer { background: #0d1911; }
+.farmer-footer span:first-child { color: #cbe7c8; }
+.farmer-main .glass, .farmer-main .ops-panel, .farmer-main .monitor-card, .farmer-main .dashboard-feature, .farmer-main .dashboard-alerts, .farmer-main .dashboard-feed, .farmer-main .dashboard-result-strip { background: #111e16; }
+.farmer-main .ops-kicker, .farmer-main .section-head, .farmer-main .overview-card span, .farmer-main .overview-card small { color: #a2c9a2; }
+.farmer-main .engine-display { background: #17271b; }
+.farmer-main .engine-core { background: #24412b; color: #d8edd5; }
+.farmer-main .crop-condition { background: #17251a; }
+
+@media (max-width: 760px) {
+  .mobile-navigation { border-color: #2a4130; background: #0d1911f2; box-shadow: 0 -7px 24px #0006; }
+  .mobile-navigation .farmer-nav-item { color: #bfd0c1; }
+  .mobile-navigation .farmer-nav-item.active:not(.nav-action) { background: #203729; color: #e4f2e1; }
+  .mobile-navigation .farmer-nav-item.nav-action { border-color: #0a130d; }
 }

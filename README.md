@@ -7,6 +7,7 @@ The application is a portfolio and research prototype. It is not a substitute fo
 ## Features
 
 - Camera-first photo check and gallery upload across 38 PlantVillage classes
+- Dark forest-green interface with high-contrast text and touch-friendly actions
 - Farmer-readable results, symptoms, severity, and backend-provided next steps
 - Browser-scoped reports from actual diagnosis responses
 - Expert queue with pending, in-review, and resolved states
