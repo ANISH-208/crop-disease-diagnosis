@@ -1,4 +1,4 @@
-"""Vercel FastAPI entry point for the Crop Doctor API service."""
+"""Vercel FastAPI entry point for the FieldLeaf AI API service."""
 
 from backend.main import app as fastapi_app
 

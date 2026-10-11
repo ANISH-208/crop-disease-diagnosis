@@ -32,63 +32,101 @@ function getReportKey() {
   return sessionReportKey;
 }
 
+export class ApiError extends Error {
+  constructor(message, { status = 0, code = "request_error", payload = null, cause } = {}) {
+    super(message, { cause });
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.payload = payload;
+  }
+}
+
+async function readPayload(response) {
+  return response.json().catch(() => ({}));
+}
+
+function responseError(response, payload, fallbackMessage) {
+  const message = typeof payload.message === "string"
+    ? payload.message
+    : typeof payload.detail === "string"
+      ? payload.detail
+      : fallbackMessage;
+  return new ApiError(message || fallbackMessage, {
+    status: response.status,
+    code: typeof payload.status === "string" ? payload.status : "request_error",
+    payload,
+  });
+}
+
 async function readResponse(response, fallbackMessage) {
-  const payload = await response.json().catch(() => ({}));
+  const payload = await readPayload(response);
   if (!response.ok) {
-    const detail = typeof payload.detail === "string" ? payload.detail : fallbackMessage;
-    throw new Error(detail || fallbackMessage);
+    throw responseError(response, payload, fallbackMessage);
   }
   return payload;
 }
 
-async function request(url, options = {}, timeoutMs = 20000) {
+async function request(url, options = {}, timeoutMs = 20000, externalSignal) {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timeout = globalThis.setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
+  const abortFromCaller = () => controller.abort();
+  if (externalSignal?.aborted) controller.abort();
+  else externalSignal?.addEventListener("abort", abortFromCaller, { once: true });
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (error) {
     if (error.name === "AbortError") {
-      throw new Error("The request took too long. Your photo is still here; try again when your connection is steady.", { cause: error });
+      throw new ApiError(timedOut
+        ? "The request took too long. Your photo is still here; try again when your connection is steady."
+        : "The request was cancelled.", { code: timedOut ? "timeout" : "cancelled", cause: error });
     }
     if (error instanceof TypeError) {
-      throw new Error("Connection problem. Check your internet connection and try again.", { cause: error });
+      throw new ApiError("Connection problem. Check your internet connection and try again.", { code: "network_error", cause: error });
     }
     throw error;
   } finally {
-    window.clearTimeout(timeout);
+    globalThis.clearTimeout(timeout);
+    externalSignal?.removeEventListener("abort", abortFromCaller);
   }
 }
 
 export async function fetchHealth() {
   const response = await request(`${API_URL}/health`);
-  return readResponse(response, "Could not reach the diagnosis service.");
+  const data = await readResponse(response, "Could not reach the diagnosis service.");
+  if (!["healthy", "degraded"].includes(data.status) || !data.model || !data.suitability) {
+    throw new ApiError("The diagnosis service returned an incomplete status.", { code: "invalid_response", payload: data });
+  }
+  return data;
 }
 
-export async function fetchAlerts() {
-  const response = await request(`${API_URL}/alerts`);
+export async function fetchAlerts(expertKey) {
+  const headers = expertKey ? { "X-Expert-Key": expertKey } : {};
+  const response = await request(`${API_URL}/alerts`, { headers });
 
   const data = await readResponse(response, "Failed to fetch alerts.");
 
-  return Array.isArray(data)
-    ? data
-    : Array.isArray(data.alerts)
-      ? data.alerts
-      : [];
+  const alerts = Array.isArray(data) ? data : data.alerts;
+  if (!Array.isArray(alerts)) throw new ApiError("The alert service returned an invalid response.", { code: "invalid_response", payload: data });
+  return alerts;
 }
 
 export async function fetchReports() {
   const response = await request(`${API_URL}/reports`, { headers: { "X-Report-Key": getReportKey() } });
   const data = await readResponse(response, "Could not load crop reports.");
-  return Array.isArray(data.reports) ? data.reports : [];
+  if (!Array.isArray(data.reports)) throw new ApiError("The reports service returned an invalid response.", { code: "invalid_response", payload: data });
+  return data.reports;
 }
 
 export async function fetchDiseases() {
   const response = await request(`${API_URL}/diseases`);
   const data = await readResponse(response, "Could not load crop disease reference data.");
-  return Array.isArray(data.classes) ? data.classes : [];
+  if (!Array.isArray(data.classes)) throw new ApiError("The crop guide returned an invalid response.", { code: "invalid_response", payload: data });
+  return data.classes;
 }
 
-export async function diagnoseImage(file) {
+export async function diagnoseImage(file, { signal } = {}) {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -96,7 +134,10 @@ export async function diagnoseImage(file) {
     method: "POST",
     body: formData,
     headers: { "X-Report-Key": getReportKey() },
-  }, 90000);
-
-  return readResponse(response, "Diagnosis request failed.");
+  }, 90000, signal);
+  const payload = await readPayload(response);
+  const resultStates = new Set(["possible_disease_detected", "healthy_class_predicted", "uncertain", "not_plant", "invalid_image", "validation_unavailable"]);
+  if (resultStates.has(payload.status) && typeof payload.message === "string") return payload;
+  if (!response.ok) throw responseError(response, payload, "The crop photo could not be checked.");
+  throw new ApiError("The diagnosis service returned an incomplete result.", { status: response.status, code: "invalid_response", payload });
 }

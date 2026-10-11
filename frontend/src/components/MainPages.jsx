@@ -252,6 +252,8 @@ export function ScannerPage({
   loading,
   error,
   backendState,
+  diagnosisAvailable,
+  diagnosisUnavailableReason,
   language,
   onTakePhoto,
   onChoosePhoto,
@@ -262,7 +264,7 @@ export function ScannerPage({
   const text = (key) => t(language, key);
   return (
     <section className="farmer-page scan-page page-view" aria-labelledby="scan-title">
-      <div className="page-intro"><span className="eyebrow">{text("stepPhoto")}</span><h1 id="scan-title">{text("scanTitle")}</h1><p>{text("scanIntro")}</p><span className={`connection-chip ${backendState === "healthy" ? "is-ready" : backendState === "offline" || backendState === "degraded" ? "is-error" : ""}`} role="status"><i aria-hidden="true" />{backendState === "healthy" ? text("serviceReady") : backendState === "offline" || backendState === "degraded" ? text("connectionProblem") : text("checkingService")}</span></div>
+      <div className="page-intro"><span className="eyebrow">{text("stepPhoto")}</span><h1 id="scan-title">{text("scanTitle")}</h1><p>{text("scanIntro")}</p><span className={`connection-chip ${diagnosisAvailable ? "is-ready" : backendState === "offline" || backendState === "degraded" ? "is-error" : ""}`} role="status"><i aria-hidden="true" />{diagnosisAvailable ? text("serviceReady") : backendState === "checking" ? text("checkingService") : "Photo checks unavailable"}</span></div>
       <section className="content-card photo-review" aria-label="Crop photo review">
         <div className={`photo-preview ${preview ? "has-photo" : ""}`}>
           {preview ? <img src={preview} alt="Preview of the crop photo you selected" /> : <div className="photo-placeholder"><span aria-hidden="true">◎</span><strong>{text("oneLeaf")}</strong><small>{text("supportedPhoto")}</small></div>}
@@ -270,8 +272,8 @@ export function ScannerPage({
         {selectedFile && <p className="selected-photo-name">{selectedFile.name} · {(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>}
         {!selectedFile ? <div className="photo-actions"><button className="button button-primary" onClick={onTakePhoto}><span aria-hidden="true">◎</span>{text("takePhoto")}</button><button className="button button-secondary" onClick={onChoosePhoto}><span aria-hidden="true">▧</span>{text("choosePhoto")}</button></div> : <div className="photo-actions"><button className="button button-secondary" onClick={onTakePhoto} disabled={loading}>{text("retake")}</button><button className="button button-secondary" onClick={onChoosePhoto} disabled={loading}>{text("chooseAnother")}</button></div>}
         {error && <div className="inline-message" role="alert">{error}</div>}
-        {selectedFile && !result && <button className="button button-primary analyze-button" disabled={loading || backendState !== "healthy"} onClick={onDiagnose}>{loading ? <><span className="spinner" aria-hidden="true" />{text("checking")}</> : text("photoReview")}</button>}
-        {(backendState === "offline" || backendState === "degraded") && <div className="offline-hint" role="status">{text("photoStillHere")} <button type="button" className="inline-retry" onClick={onRetryConnection}>{text("retry")}</button></div>}
+        {selectedFile && !result && <button className="button button-primary analyze-button" disabled={loading || !diagnosisAvailable} onClick={onDiagnose}>{loading ? <><span className="spinner" aria-hidden="true" />{text("checking")}</> : text("photoReview")}</button>}
+        {!diagnosisAvailable && backendState !== "checking" && <div className="offline-hint" role="status">{diagnosisUnavailableReason || text("photoStillHere")} <button type="button" className="inline-retry" onClick={onRetryConnection}>{text("retry")}</button></div>}
         <p className="photo-consent">{text("photoSentOnlyOnAction")}</p>
       </section>
       <aside className="quick-tips content-card"><strong>{text("photoTips")}</strong><ul><li>{text("tipOne")}</li><li>{text("tipThree")}</li></ul></aside>

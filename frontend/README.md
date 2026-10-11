@@ -1,6 +1,6 @@
-# Crop Doctor AI frontend
+# FieldLeaf AI frontend
 
-React 19 + Vite frontend for Crop Doctor AI. The interface uses the API endpoints and WebSocket service documented in the [repository README](../README.md).
+React 19 + Vite frontend for FieldLeaf AI. The interface uses the API endpoints and WebSocket service documented in the [repository README](../README.md).
 
 ```bash
 npm ci

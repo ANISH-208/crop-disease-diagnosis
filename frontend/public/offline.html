@@ -3,13 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0a130d" />
-    <title>Crop Doctor AI · Offline</title>
+    <meta name="theme-color" content="#1d432f" />
+    <title>FieldLeaf AI · Offline</title>
     <style>
-      body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0a130d;color:#e7f1e7;font:16px/1.55 system-ui,sans-serif}
-      main{width:min(90vw,480px);padding:28px;border:1px solid #2a4130;border-radius:18px;background:#111e16}
-      h1{color:#c9e5c8}button{min-height:48px;padding:10px 18px;border:0;border-radius:9px;background:#75b77c;color:#102316;font:inherit;font-weight:700}
+      body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#f3f4ec;color:#24352a;font:16px/1.6 Inter,system-ui,sans-serif}
+      main{width:min(100%,480px);padding:36px;border:1px solid #dde5d8;border-radius:24px;background:#fefff9;box-shadow:0 18px 48px #1d432f12}
+      .mark{display:grid;place-items:center;width:44px;height:44px;margin-bottom:26px;border-radius:15px 15px 15px 5px;background:#1d432f;color:#d8e9a2;font-size:22px}
+      h1{margin:0;color:#1d432f;font-size:32px;line-height:1.1;letter-spacing:-.04em}p{margin:14px 0 24px;color:#637265}
+      button{min-height:48px;padding:10px 20px;border:0;border-radius:999px;background:#24583c;color:#fff;font:inherit;font-weight:700;cursor:pointer}
     </style>
   </head>
-  <body><main><h1>You’re offline</h1><p>Reconnect to the internet to check a crop photo. The app can open, but diagnosis needs the Crop Doctor service.</p><button onclick="location.reload()">Try again</button></main></body>
+  <body><main><div class="mark" aria-hidden="true">✳</div><h1>You’re offline</h1><p>Reconnect to the internet to check a crop photo. FieldLeaf AI can open, but diagnosis needs a connection.</p><button onclick="location.reload()">Try again</button></main></body>
 </html>

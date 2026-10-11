@@ -1,14 +1,14 @@
 {
   "id": "/",
-  "name": "Crop Doctor AI",
-  "short_name": "Crop Doctor",
+  "name": "FieldLeaf AI",
+  "short_name": "FieldLeaf",
   "description": "Check a crop leaf photo and get an AI-assisted result.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0a130d",
-  "theme_color": "#0a130d",
+  "background_color": "#f3f4ec",
+  "theme_color": "#1d432f",
   "icons": [
     {
       "src": "/icon-192.png",
