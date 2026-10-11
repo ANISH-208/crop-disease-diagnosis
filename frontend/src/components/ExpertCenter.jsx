@@ -12,6 +12,9 @@ const FILTERS = [
 
 function ExpertCenter({
   alerts = [],
+  expertAccessKey = "",
+  backendState = "checking",
+  socketState = "connecting",
   onRefresh,
   refreshing = false,
   onAlertUpdated,
@@ -46,6 +49,17 @@ function ExpertCenter({
     });
   }, [alerts, filter, search]);
   const selectedAlert = alerts.find((alert) => alert.id === selectedAlertId) || null;
+  const liveStatus = socketState === "live"
+    ? { className: "is-live", label: "Live alert stream connected" }
+    : backendState === "offline"
+      ? { className: "is-offline", label: "Backend unreachable · Check your connection" }
+      : backendState === "degraded"
+        ? { className: "is-offline", label: "Backend responding with limited service" }
+        : socketState === "rest"
+          ? { className: "", label: "Backend connected · Live updates unavailable" }
+          : socketState === "offline"
+            ? { className: "is-offline", label: "Alert stream offline · API is available" }
+            : { className: "", label: "Connecting to the alert stream" };
 
   const updateStatus = async (id, status) => {
     setUpdatingId(id);
@@ -56,6 +70,7 @@ function ExpertCenter({
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
+          "X-Expert-Key": expertAccessKey,
         },
         body: JSON.stringify({ status }),
       });
@@ -104,10 +119,10 @@ function ExpertCenter({
 
       <div className="expert-command-strip">
         <div className="expert-live-state">
-          <span className="expert-live-dot" />
+          <span className={`expert-live-dot ${liveStatus.className}`} />
           <div>
             <strong>REALTIME ALERT NETWORK</strong>
-            <small>Connected to V6 diagnostic backend</small>
+            <small>{liveStatus.label}</small>
           </div>
         </div>
 
@@ -250,6 +265,7 @@ function AlertCard({
 }) {
   const priority = (alert.priority || "normal").toLowerCase();
   const status = alert.status || "pending";
+  const legacyUnvalidated = !alert.validation_model_version;
 
   return (
     <article
@@ -269,25 +285,23 @@ function AlertCard({
       <div className="alert-main">
         <div className="alert-title-row">
           <div>
-            <span className="alert-crop">
-              {alert.crop || "Unknown Crop"}
-            </span>
+            <span className="alert-crop">{legacyUnvalidated ? "HISTORICAL RESULT" : alert.crop || "Unknown Crop"}</span>
 
-            <h3>{alert.diagnosis || "Unknown Diagnosis"}</h3>
+            <h3>{legacyUnvalidated ? "Not screened for crop suitability" : alert.diagnosis || "Unknown diagnosis"}</h3>
           </div>
 
           <div className="alert-confidence">
-            <strong>
-              {Number(alert.confidence || 0).toFixed(1)}%
-            </strong>
-            <span>AI CONFIDENCE</span>
+            <strong>{legacyUnvalidated ? "—" : `${Number(alert.confidence || 0).toFixed(1)}%`}</strong>
+            <span>{legacyUnvalidated ? "NOT VALIDATED" : "MODEL SCORE"}</span>
           </div>
         </div>
+
+        {legacyUnvalidated && <p className="legacy-alert-note" role="note">This alert predates crop photo screening. The earlier result is hidden and must not be treated as a diagnosis.</p>}
 
         <div className="alert-meta">
           <span>
             <b>SEVERITY</b>
-            {alert.severity || "Unknown"}
+            {legacyUnvalidated ? "Not validated" : alert.severity || "Unknown"}
           </span>
 
           <span>
@@ -297,7 +311,7 @@ function AlertCard({
 
           <span>
             <b>MODEL</b>
-            {alert.model_version || "V6 ENGINE"}
+            {legacyUnvalidated ? "Not available" : alert.model_version || "V6 ENGINE"}
           </span>
 
           <span>
@@ -346,6 +360,7 @@ function AlertCard({
 
 function AlertDetail({ alert, updating, onStatusChange }) {
   const status = alert.status || "pending";
+  const legacyUnvalidated = !alert.validation_model_version;
 
   return (
     <div className="detail-panel">
@@ -361,18 +376,20 @@ function AlertDetail({ alert, updating, onStatusChange }) {
       </div>
 
       <div className="detail-diagnosis">
-        <span>{alert.crop || "UNKNOWN CROP"}</span>
-        <h2>{alert.diagnosis || "Unknown Diagnosis"}</h2>
+        <span>{legacyUnvalidated ? "HISTORICAL RESULT" : alert.crop || "UNKNOWN CROP"}</span>
+        <h2>{legacyUnvalidated ? "Not screened for crop suitability" : alert.diagnosis || "Unknown diagnosis"}</h2>
       </div>
 
-      {alert.symptoms && (
+      {legacyUnvalidated && <p className="legacy-alert-note" role="note">This earlier result was generated before crop photo suitability checks. Do not treat it as a confirmed crop disease.</p>}
+
+      {!legacyUnvalidated && alert.symptoms && (
         <div className="detail-symptoms">
           <span>REPORTED SYMPTOMS</span>
           <p>{alert.symptoms}</p>
         </div>
       )}
 
-      <div className="detail-confidence">
+      {!legacyUnvalidated && <div className="detail-confidence">
         <div className="confidence-track">
           <span
             style={{
@@ -390,12 +407,12 @@ function AlertDetail({ alert, updating, onStatusChange }) {
             {Number(alert.confidence || 0).toFixed(2)}%
           </strong>
         </div>
-      </div>
+      </div>}
 
       <div className="detail-grid">
         <DetailMetric
           label="SEVERITY"
-          value={alert.severity || "Unknown"}
+          value={legacyUnvalidated ? "Not validated" : alert.severity || "Unknown"}
         />
 
         <DetailMetric
@@ -405,7 +422,7 @@ function AlertDetail({ alert, updating, onStatusChange }) {
 
         <DetailMetric
           label="MODEL"
-          value={alert.model_version || "V6"}
+          value={legacyUnvalidated ? "Not available" : alert.model_version || "V6"}
         />
 
         <DetailMetric

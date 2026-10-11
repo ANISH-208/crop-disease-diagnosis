@@ -42,7 +42,8 @@ def initialize_database():
             image_filename TEXT,
 
             status TEXT NOT NULL DEFAULT 'pending',
-            priority TEXT NOT NULL DEFAULT 'normal'
+            priority TEXT NOT NULL DEFAULT 'normal',
+            validation_model_version TEXT
         )
         """
     )
@@ -60,7 +61,9 @@ def initialize_database():
             prevention_json TEXT NOT NULL,
             expert_review INTEGER NOT NULL,
             alert_id TEXT,
-            owner_hash TEXT
+            owner_hash TEXT,
+            validation_model_version TEXT,
+            result_status TEXT
         )
         """
     )
@@ -68,6 +71,13 @@ def initialize_database():
     report_columns = {row["name"] for row in connection.execute("PRAGMA table_info(reports)").fetchall()}
     if "owner_hash" not in report_columns:
         connection.execute("ALTER TABLE reports ADD COLUMN owner_hash TEXT")
+    if "validation_model_version" not in report_columns:
+        connection.execute("ALTER TABLE reports ADD COLUMN validation_model_version TEXT")
+    if "result_status" not in report_columns:
+        connection.execute("ALTER TABLE reports ADD COLUMN result_status TEXT")
+    alert_columns = {row["name"] for row in connection.execute("PRAGMA table_info(alerts)").fetchall()}
+    if "validation_model_version" not in alert_columns:
+        connection.execute("ALTER TABLE alerts ADD COLUMN validation_model_version TEXT")
     connection.commit()
     connection.close()
 
@@ -88,8 +98,9 @@ def save_report(report: dict, report_key: str) -> dict:
             """
             INSERT OR REPLACE INTO reports (
                 id, created_at, crop, diagnosis, confidence, severity, symptoms,
-                prevention_json, expert_review, alert_id, owner_hash
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                prevention_json, expert_review, alert_id, owner_hash,
+                validation_model_version, result_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 report_id, created_at, report["crop"], report["diagnosis"],
@@ -98,12 +109,28 @@ def save_report(report: dict, report_key: str) -> dict:
                 int(bool(report.get("expert_review"))),
                 (report.get("alert") or {}).get("id"),
                 _owner_hash(report_key),
+                (report.get("validation") or {}).get("model_version"),
+                report.get("status"),
             ),
         )
         connection.commit()
     finally:
         connection.close()
     return {**report, "id": report_id, "created_at": created_at}
+
+
+def link_report_to_alert(report_id: str, alert_id: str) -> None:
+    connection = get_connection()
+    try:
+        cursor = connection.execute(
+            "UPDATE reports SET alert_id = ? WHERE id = ?",
+            (alert_id, report_id),
+        )
+        if cursor.rowcount == 0:
+            raise ValueError(f"Report {report_id} does not exist.")
+        connection.commit()
+    finally:
+        connection.close()
 
 
 def get_reports(report_key: str, limit: int = 100) -> list[dict]:
@@ -122,21 +149,24 @@ def get_reports(report_key: str, limit: int = 100) -> list[dict]:
         ).fetchall()
     finally:
         connection.close()
-    return [
-        {
+    reports = []
+    for row in rows:
+        validated = bool(row["validation_model_version"])
+        reports.append({
             "id": row["id"],
             "created_at": row["created_at"],
-            "crop": row["crop"],
-            "diagnosis": row["diagnosis"],
-            "confidence": row["confidence"],
-            "severity": row["severity"],
-            "symptoms": row["symptoms"],
-            "prevention": json.loads(row["prevention_json"]),
-            "expert_review": bool(row["expert_review"]),
-            "status": row["alert_status"] or "completed",
-        }
-        for row in rows
-    ]
+            "crop": row["crop"] if validated else None,
+            "diagnosis": row["diagnosis"] if validated else None,
+            "confidence": row["confidence"] if validated else None,
+            "severity": row["severity"] if validated else None,
+            "symptoms": row["symptoms"] if validated else "",
+            "prevention": json.loads(row["prevention_json"]) if validated else [],
+            "expert_review": bool(row["expert_review"]) if validated else True,
+            "status": (row["alert_status"] or row["result_status"] or "completed") if validated else "legacy_unvalidated",
+            "validation_model_version": row["validation_model_version"],
+            "message": None if validated else "This earlier result was generated before crop photo suitability checks were available. Do not treat it as a diagnosis.",
+        })
+    return reports
 
 
 # Initialize database when the backend starts
@@ -153,7 +183,8 @@ def create_alert(
     severity: str,
     confidence: float,
     symptoms: str,
-    image_filename: str,
+    image_filename: str | None,
+    validation_model_version: str | None = None,
 ):
     alert_id = str(uuid.uuid4())
 
@@ -177,12 +208,12 @@ def create_alert(
             """
             INSERT INTO alerts (
                 id, created_at, crop, diagnosis, severity, confidence,
-                symptoms, image_filename, status, priority
+                symptoms, image_filename, status, priority, validation_model_version
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (alert_id, created_at, crop, diagnosis, severity, confidence,
-             symptoms, image_filename, "pending", priority),
+             symptoms, image_filename, "pending", priority, validation_model_version),
         )
         connection.commit()
     finally:
@@ -197,6 +228,7 @@ def create_alert(
         "confidence": confidence,
         "symptoms": symptoms,
         "image_filename": image_filename,
+        "validation_model_version": validation_model_version,
         "status": "pending",
         "priority": priority,
     }

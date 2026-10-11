@@ -6,6 +6,7 @@ import App from "./App.jsx";
 import "./biopunk.css";
 import "./green-theme.css";
 import "./farmer.css";
+import "./fieldwork.css";
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {

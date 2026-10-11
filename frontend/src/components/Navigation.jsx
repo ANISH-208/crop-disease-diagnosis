@@ -24,7 +24,7 @@ export default function Navigation({ page, onNavigate, language = "en" }) {
       <div className="desktop-primary">{primaryItems.map((item) => <NavButton key={item.id} item={item} active={page === item.id} text={text} onNavigate={onNavigate} />)}</div>
       <details className={`more-menu ${moreActive ? "more-active" : ""}`}>
         <summary><span aria-hidden="true">⋯</span>{text("more")}</summary>
-        <div className="more-menu-panel"><strong>{text("advanced")}</strong>{secondaryItems.map((item) => <button key={item.id} aria-current={page === item.id ? "page" : undefined} onClick={() => onNavigate(item.id)}>{text(item.label)}</button>)}</div>
+        <div className="more-menu-panel"><strong>{text("advanced")}</strong>{secondaryItems.map((item) => <button key={item.id} aria-current={page === item.id ? "page" : undefined} onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); onNavigate(item.id); }}>{text(item.label)}</button>)}</div>
       </details>
     </nav>
     <nav className="farmer-navigation mobile-navigation" aria-label="Main navigation">

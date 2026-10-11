@@ -15,12 +15,14 @@ export default function useWebSocket({
     let retryTimer;
     let alive = true;
     let retryCount = 0;
+    const seenEventIds = new Set();
 
     const connect = () => {
       if (!alive) return;
       try {
         ws = new WebSocket(WS_URL);
       } catch {
+        onStatusChange("offline");
         scheduleReconnect();
         return;
       }
@@ -36,21 +38,15 @@ export default function useWebSocket({
         try {
           const payload = JSON.parse(message.data);
           const eventType = payload.type || "event";
-          let data = payload.data ?? payload.alert ?? payload.diagnosis ?? {};
-          if (eventType === "alert_created" || eventType === "alert_updated") {
-            data = data.alert ?? data;
-          } else if (eventType === "diagnosis_completed") {
-            data = data.diagnosis
-              ? { ...data.diagnosis, job_id: data.job_id }
-              : data;
+          const eventId = payload.event_id;
+          if (eventId && seenEventIds.has(eventId)) return;
+          if (eventId) {
+            seenEventIds.add(eventId);
+            if (seenEventIds.size > 100) seenEventIds.delete(seenEventIds.values().next().value);
           }
-
-          onEvent({
-            type: eventType,
-            data,
-          });
+          onEvent({ type: eventType, eventId, data: payload.data ?? payload.alert ?? payload.diagnosis ?? {} });
         } catch {
-          onEvent({ type: "protocol_error", data: { message: "Could not read a realtime event." } });
+          onEvent({ type: "protocol_error", eventId: null, data: { message: "Could not read a realtime event." } });
         }
       };
 

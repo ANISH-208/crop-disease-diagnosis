@@ -56,3 +56,5 @@ ml_v6/checkpoints/
 
 # Training model artifact
 ml_v6/outputs/*.keras
+.vercel
+.env*

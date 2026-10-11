@@ -9,6 +9,7 @@ import numpy as np
 from PIL import Image
 
 from backend.config import CLASS_MAPPING_PATH, LITE_MODEL_PATH, MODEL_PATH
+from backend.image_utils import load_normalized_rgb
 
 logger = logging.getLogger(__name__)
 
@@ -16,14 +17,19 @@ MODEL_VERSION = "v6-efficientnetv2s"
 IMAGE_SIZE = (224, 224)
 EXPECTED_CLASS_COUNT = 38
 
-with CLASS_MAPPING_PATH.open("r", encoding="utf-8") as mapping_file:
-    _class_mapping = json.load(mapping_file)
-
-CLASS_NAMES = _class_mapping.get("classes", [])
-if len(CLASS_NAMES) != EXPECTED_CLASS_COUNT or len(set(CLASS_NAMES)) != EXPECTED_CLASS_COUNT:
-    raise RuntimeError("The V6 class mapping must contain 38 unique classes.")
-if _class_mapping.get("class_to_index") != {name: index for index, name in enumerate(CLASS_NAMES)}:
-    raise RuntimeError("The V6 class-to-index mapping does not match the model output order.")
+_mapping_error: str | None = None
+try:
+    with CLASS_MAPPING_PATH.open("r", encoding="utf-8") as mapping_file:
+        _class_mapping = json.load(mapping_file)
+    CLASS_NAMES = _class_mapping.get("classes", [])
+    if len(CLASS_NAMES) != EXPECTED_CLASS_COUNT or len(set(CLASS_NAMES)) != EXPECTED_CLASS_COUNT:
+        raise ValueError("The V6 class mapping must contain 38 unique classes.")
+    if _class_mapping.get("class_to_index") != {name: index for index, name in enumerate(CLASS_NAMES)}:
+        raise ValueError("The V6 class-to-index mapping does not match the model output order.")
+except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+    CLASS_NAMES = []
+    _mapping_error = str(exc)
+    logger.error("V6 class mapping is unavailable or invalid: %s", exc)
 
 _model = None
 _model_lock = threading.Lock()
@@ -34,6 +40,8 @@ _active_runtime: str | None = None
 
 def model_status() -> dict:
     """Return model readiness without triggering a heavyweight load."""
+    if _mapping_error or len(CLASS_NAMES) != EXPECTED_CLASS_COUNT:
+        return {"status": "mapping_error", "ready": False, "version": MODEL_VERSION}
     if _model is not None:
         return {"status": "loaded", "ready": True, "version": MODEL_VERSION, "runtime": _active_runtime}
     if not LITE_MODEL_PATH.is_file() and not MODEL_PATH.is_file():
@@ -53,6 +61,8 @@ def _load_model():
         if _model is not None:
             return _model
         try:
+            if _mapping_error or len(CLASS_NAMES) != EXPECTED_CLASS_COUNT:
+                raise RuntimeError("The V6 class mapping is unavailable or invalid.")
             if LITE_MODEL_PATH.is_file():
                 from ai_edge_litert.interpreter import Interpreter
 
@@ -100,8 +110,8 @@ def _load_model():
 
 def predict_disease(image_path: str | Path) -> dict:
     runtime = _load_model()
-    with Image.open(image_path) as source:
-        image = source.convert("RGB").resize(IMAGE_SIZE)
+    # Match the training pipeline: 0..255 RGB pixels and bilinear resize.
+    image = load_normalized_rgb(image_path).resize(IMAGE_SIZE, Image.Resampling.BILINEAR)
 
     image_array = np.expand_dims(np.asarray(image, dtype=np.float32), axis=0)
     with _prediction_lock:
@@ -121,6 +131,7 @@ def predict_disease(image_path: str | Path) -> dict:
     return {
         "class": CLASS_NAMES[predicted_index],
         "confidence": float(predictions[predicted_index]),
+        "probabilities": [float(value) for value in predictions],
         "model_version": MODEL_VERSION,
         "top_predictions": [
             {
