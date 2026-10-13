@@ -41,7 +41,17 @@ def diagnose_image(image_path: str, suitability_result: dict | None = None) -> d
     result = model.predict_disease(image_path)
     top = result["top_predictions"]
     confidence = float(result["confidence"])
-    margin = confidence - (float(top[1]["confidence"]) / 100 if len(top) > 1 else 0.0)
+    # The displayed top predictions are rounded to two decimal places. Use
+    # the raw model probabilities for the calibrated acceptance margin so the
+    # runtime decision matches the calibration script exactly.
+    probabilities = result.get("probabilities", [])
+    if len(probabilities) > 1:
+        second_probability = sorted((float(value) for value in probabilities), reverse=True)[1]
+    elif len(top) > 1:
+        second_probability = float(top[1]["confidence"]) / 100
+    else:
+        second_probability = 0.0
+    margin = confidence - second_probability
     policy = disease_policy_status()
     if not policy["ready"]:
         return _uncertain_result(result, "Disease prediction thresholds have not been calibrated.")

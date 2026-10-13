@@ -119,12 +119,12 @@ function App() {
         setAlerts((current) => type === "alert_created"
           ? [incoming, ...current.filter((item) => item.id !== incoming.id)]
           : current.map((item) => item.id === incoming.id ? { ...item, ...incoming } : item));
-        if (type === "alert_updated" && !alerts.some((item) => item.id === incoming.id)) void refreshAlerts({ quiet: true });
+        if (type === "alert_updated") void refreshAlerts({ quiet: true });
       } else {
         void refreshAlerts({ quiet: true });
       }
     }
-  }, [alerts, expertAccessKey, pushEvent, refreshAlerts]);
+  }, [expertAccessKey, pushEvent, refreshAlerts]);
 
   const handleSocketEvent = useCallback(({ type, data }) => handleRealtimeEvent(type, data), [handleRealtimeEvent]);
   const handleSocketStatus = useCallback((status) => setSocketState(status), []);
