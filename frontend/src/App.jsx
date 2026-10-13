@@ -272,7 +272,7 @@ function App() {
     <header className="farmer-header">
       <button className="brand-button" aria-label="FieldLeaf AI home" onClick={() => navigate("home")}><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M16.2 24.9c-7.4-.8-11.2-5-10.3-12.3 6.8 1.1 10.4 5.1 10.3 12.3Z" fill="currentColor"/><path d="M16.6 22.4c.7-7.2 4.9-11 12.1-10.2-1 6.8-5 10.5-12.1 10.2Z" fill="currentColor" opacity=".72"/><path d="M16.1 25.7c.2-5.8.4-10.5.1-16.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg></span><span><strong>FieldLeaf AI</strong><small>{text("brandTagline")}</small></span></button>
       <div className="header-tools">
-        <span className={`header-status ${backendState === "healthy" ? "ready" : backendState === "offline" || backendState === "degraded" ? "offline" : ""}`} role="status"><i aria-hidden="true" />{backendState === "healthy" ? text("serviceReady") : backendState === "offline" || backendState === "degraded" ? text("connectionProblem") : text("checkingService")}</span>
+        <span className={`header-status ${backendState === "healthy" ? "ready" : backendState === "offline" ? "offline" : backendState === "degraded" ? "limited" : ""}`} role="status"><i aria-hidden="true" />{backendState === "healthy" ? text("serviceReady") : backendState === "offline" ? text("connectionProblem") : backendState === "degraded" ? text("serviceLimited") : text("checkingService")}</span>
       </div>
     </header>
 
@@ -308,9 +308,13 @@ function summarizeEvent(type) {
 
 function getDiagnosisUnavailableReason(data) {
   if (data.diagnosis_ready) return "";
-  if (!data.suitability?.ready) return "Crop photo checks are not ready yet. Please try again later.";
-  if (!data.model?.ready) return "The crop photo service is not available at the moment.";
-  if (!data.disease_policy?.ready) return "Disease results are not ready yet. Please try again later.";
+  if (!data.suitability?.ready) {
+    return data.suitability?.status === "error"
+      ? "The crop photo safety check could not load. Photo analysis is temporarily unavailable."
+      : "The crop photo safety model has not been installed yet. Photo analysis is unavailable.";
+  }
+  if (!data.model?.ready) return "The crop disease recognition model is not available right now.";
+  if (!data.disease_policy?.ready) return "Disease recognition has not been calibrated for reliable results yet.";
   return "Crop photo checks are not ready yet. Please try again later.";
 }
 
