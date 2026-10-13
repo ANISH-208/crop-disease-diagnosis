@@ -62,13 +62,16 @@ function ProcessCard({ number, title, detail }) {
 }
 
 function BotanicalArtwork({ backendState, diagnosisAvailable, text }) {
-  const isUnavailable = backendState === "offline" || backendState === "degraded";
+  const isOffline = backendState === "offline";
+  const isDegraded = backendState === "degraded";
   const status = diagnosisAvailable
     ? text("serviceReady")
-    : isUnavailable
+    : isOffline
       ? text("connectionProblem")
+      : isDegraded
+        ? text("serviceLimited")
       : text("checkingService");
-  const statusClass = diagnosisAvailable ? "is-ready" : isUnavailable ? "is-offline" : "is-checking";
+  const statusClass = diagnosisAvailable ? "is-ready" : isOffline ? "is-offline" : isDegraded ? "is-limited" : "is-checking";
 
   return <div className={`field-hero-art ${statusClass}`} aria-hidden="true">
     <svg className="leaf-illustration" viewBox="0 0 520 430" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -110,7 +113,7 @@ function BotanicalArtwork({ backendState, diagnosisAvailable, text }) {
     <div className="art-ready-card">
       <span className="art-ready-icon"><i /></span>
       <span><small>{text("photoCheckLabel")}</small><strong>{status}</strong></span>
-      <span className="art-ready-check">{diagnosisAvailable ? "✓" : isUnavailable ? "!" : "…"}</span>
+      <span className="art-ready-check">{diagnosisAvailable ? "✓" : isOffline || isDegraded ? "!" : "…"}</span>
     </div>
     <div className="art-coordinate art-coordinate-bottom"><span>ONE CLEAR LEAF</span><i /></div>
   </div>;

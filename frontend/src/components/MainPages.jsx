@@ -264,7 +264,7 @@ export function ScannerPage({
   const text = (key) => t(language, key);
   return (
     <section className="farmer-page scan-page page-view" aria-labelledby="scan-title">
-      <div className="page-intro"><span className="eyebrow">{text("stepPhoto")}</span><h1 id="scan-title">{text("scanTitle")}</h1><p>{text("scanIntro")}</p><span className={`connection-chip ${diagnosisAvailable ? "is-ready" : backendState === "offline" || backendState === "degraded" ? "is-error" : ""}`} role="status"><i aria-hidden="true" />{diagnosisAvailable ? text("serviceReady") : backendState === "checking" ? text("checkingService") : "Photo checks unavailable"}</span></div>
+      <div className="page-intro"><span className="eyebrow">{text("stepPhoto")}</span><h1 id="scan-title">{text("scanTitle")}</h1><p>{text("scanIntro")}</p><span className={`connection-chip ${diagnosisAvailable ? "is-ready" : backendState === "offline" ? "is-error" : backendState === "degraded" ? "is-limited" : ""}`} role="status"><i aria-hidden="true" />{diagnosisAvailable ? text("serviceReady") : backendState === "checking" ? text("checkingService") : backendState === "offline" ? text("connectionProblem") : text("photoChecksUnavailable")}</span></div>
       <section className="content-card photo-review" aria-label="Crop photo review">
         <div className={`photo-preview ${preview ? "has-photo" : ""}`}>
           {preview ? <img src={preview} alt="Preview of the crop photo you selected" /> : <div className="photo-placeholder"><span aria-hidden="true">◎</span><strong>{text("oneLeaf")}</strong><small>{text("supportedPhoto")}</small></div>}

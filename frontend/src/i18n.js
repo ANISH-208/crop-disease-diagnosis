@@ -31,6 +31,8 @@ export const messages = {
     confidenceNote: "The model's confidence is not a guarantee that this result is correct.",
     whatNext: "What to do next",
     connectionProblem: "Connection problem",
+    serviceLimited: "Connected · checks unavailable",
+    photoChecksUnavailable: "Photo checks unavailable",
     retry: "Try again",
     reportDate: "Checked",
     severity: "Severity",
