@@ -18,7 +18,7 @@ from fastapi.exceptions import RequestValidationError
 
 from backend import model
 from backend.alerts import create_alert, get_alert, get_alerts, get_connection, get_reports, link_report_to_alert, save_report, update_alert_status
-from backend.config import ALLOWED_ORIGINS, CONFIDENCE_THRESHOLD, DATABASE_PATH, EXPERT_API_KEY, MAX_IMAGE_PIXELS, MAX_UPLOAD_BYTES, REALTIME_AVAILABLE, UPLOAD_DIR
+from backend.config import ALLOW_UNVALIDATED_DIAGNOSIS, ALLOWED_ORIGINS, CONFIDENCE_THRESHOLD, DATABASE_PATH, EXPERT_API_KEY, MAX_IMAGE_PIXELS, MAX_UPLOAD_BYTES, REALTIME_AVAILABLE, UPLOAD_DIR
 from backend.diagnosis import diagnose_image, disease_policy_status
 from backend.disease_data import DISEASE_DATA
 from backend.suitability import validator as suitability_validator
@@ -115,6 +115,7 @@ class DiagnosisResponse(BaseModel):
     model_version: str | None = None
     top_predictions: list[dict] = Field(default_factory=list)
     validation: dict | None = None
+    validation_bypassed: bool = False
 
 
 def require_expert_access(expert_key: str | None = Header(default=None, alias="X-Expert-Key")) -> None:
@@ -227,11 +228,14 @@ def health():
     except Exception:
         logger.exception("Database health check failed")
         database_state = "unavailable"
-    diagnosis_ready = model_state["ready"] and suitability_state["ready"] and disease_policy["ready"]
-    healthy = diagnosis_ready and database_state == "healthy"
+    validation_bypass_active = ALLOW_UNVALIDATED_DIAGNOSIS and not suitability_state["ready"]
+    validation_ready = suitability_state["ready"] or validation_bypass_active
+    diagnosis_ready = model_state["ready"] and validation_ready and disease_policy["ready"]
+    healthy = diagnosis_ready and database_state == "healthy" and not validation_bypass_active
     return {
         "status": "healthy" if healthy else "degraded",
         "diagnosis_ready": diagnosis_ready,
+        "validation_bypass_active": validation_bypass_active,
         "realtime": REALTIME_AVAILABLE,
         "connections": len(events.connections),
         "model": model_state,
@@ -239,6 +243,7 @@ def health():
         "disease_policy": disease_policy,
         "database": database_state,
         "database_persistence": "ephemeral" if str(DATABASE_PATH).startswith("/tmp/") else "local",
+        "expert_access_configured": len(EXPERT_API_KEY) >= 32,
     }
 
 
@@ -290,11 +295,15 @@ async def diagnose(
         logger.info("Photo check started job_id=%s", job_id)
         validation = await asyncio.to_thread(suitability_validator.validate_image, str(file_path))
         if validation.get("status") == "unavailable":
-            await events.broadcast("diagnosis_failed", {"job_id": job_id, "status": "validation_unavailable"})
-            raise HTTPException(status_code=503, detail={
-                "status": "validation_unavailable",
-                "message": validation.get("message", "The crop photo check is not available yet."),
-            })
+            if ALLOW_UNVALIDATED_DIAGNOSIS:
+                validation = {"status": "bypassed", "model_version": None}
+                logger.warning("Suitability validation bypassed by explicit deployment setting job_id=%s", job_id)
+            else:
+                await events.broadcast("diagnosis_failed", {"job_id": job_id, "status": "validation_unavailable"})
+                raise HTTPException(status_code=503, detail={
+                    "status": "validation_unavailable",
+                    "message": validation.get("message", "The crop photo check is not available yet."),
+                })
         if validation.get("status") == "not_plant":
             await events.broadcast("diagnosis_completed", {"job_id": job_id, "status": "not_plant"})
             raise HTTPException(status_code=422, detail={
@@ -302,7 +311,7 @@ async def diagnose(
                 "message": "This photo does not look like a crop or leaf photo. Choose a clear crop photo and try again.",
                 "validation": {key: value for key, value in validation.items() if key != "message"},
             })
-        if validation.get("status") != "suitable":
+        if validation.get("status") not in {"suitable", "bypassed"}:
             await events.broadcast("diagnosis_failed", {"job_id": job_id, "status": "uncertain"})
             raise HTTPException(status_code=503, detail={
                 "status": "validation_unavailable",
@@ -310,13 +319,20 @@ async def diagnose(
             })
 
         diagnosis = await asyncio.to_thread(diagnose_image, str(file_path), validation)
+        validation_bypassed = validation.get("status") == "bypassed"
         response = {
             "job_id": job_id,
             **diagnosis,
+            "message": (
+                f"{diagnosis.get('message', '')} Unvalidated screening: the crop/leaf check is off, "
+                "so unrelated photos may receive a crop disease prediction."
+                if validation_bypassed else diagnosis.get("message", "")
+            ),
             "expert_review": bool(diagnosis.get("expert_review")),
             "alert_created": False,
             "alert": None,
             "validation": {key: value for key, value in validation.items() if key != "message"},
+            "validation_bypassed": validation_bypassed,
         }
         if diagnosis["status"] != "uncertain":
             confidence = float(diagnosis["confidence"])

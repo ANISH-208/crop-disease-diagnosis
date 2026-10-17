@@ -3,7 +3,8 @@
   "services": {
     "crop-doctor-api": {
       "root": ".",
-      "framework": "fastapi"
+      "framework": "fastapi",
+      "entrypoint": "index:app"
     },
     "crop-doctor-frontend": {
       "root": "frontend",

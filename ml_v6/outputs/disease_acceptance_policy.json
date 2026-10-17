@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "model_version": "v6-efficientnetv2s",
+  "class_count": 38,
+  "acceptance_policy": {
+    "minimum_probability": 0.0,
+    "minimum_margin": 0.6673757868508498,
+    "max_validation_selective_error_rate_requested": 0.01
+  },
+  "validation": {
+    "total": 5360,
+    "accepted": 5270,
+    "rejected": 90,
+    "coverage": 0.9832089552238806,
+    "selective_error_rate": 0.005123339658444023,
+    "accepted_accuracy": 0.994876660341556
+  },
+  "test": {
+    "total": 5545,
+    "accepted": 5471,
+    "rejected": 74,
+    "coverage": 0.9866546438232642,
+    "selective_error_rate": 0.0049351124108938035,
+    "accepted_accuracy": 0.9950648875891062
+  },
+  "environment_lines": {
+    "CROP_DOCTOR_DISEASE_MIN_PROBABILITY": "0.0",
+    "CROP_DOCTOR_DISEASE_MIN_MARGIN": "0.6673757868508498"
+  }
+}

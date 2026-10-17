@@ -355,13 +355,15 @@ def main():
             row["split"] = assignments[group_key]
 
         else:
-
-            row["leaf_id"] = ""
-
             # Deterministic fallback split.
             digest = hashlib.sha256(
                 path.encode("utf-8")
             ).hexdigest()
+
+            # Keep the manifest's group column populated for downstream
+            # calibration checks. Exact duplicates share an ID and are moved
+            # to one split in the duplicate-leakage pass below.
+            row["leaf_id"] = f"fallback-{row['sha256']}"
 
             value = (
                 int(digest[:8], 16)

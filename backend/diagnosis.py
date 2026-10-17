@@ -1,7 +1,7 @@
 """Disease prediction with explicit input validation and uncertainty policy."""
 
 from backend import model
-from backend.config import DISEASE_MIN_MARGIN, DISEASE_MIN_PROBABILITY
+from backend.config import ALLOW_UNVALIDATED_DIAGNOSIS, DISEASE_MIN_MARGIN, DISEASE_MIN_PROBABILITY
 from backend.disease_data import DISEASE_DATA
 
 
@@ -35,7 +35,10 @@ def diagnose_image(image_path: str, suitability_result: dict | None = None) -> d
     Until both are configured, the class scores are returned as uncertain and
     never promoted to a diagnosis.
     """
-    if not suitability_result or suitability_result.get("status") != "suitable":
+    validation_status = suitability_result.get("status") if suitability_result else None
+    if validation_status != "suitable" and not (
+        validation_status == "bypassed" and ALLOW_UNVALIDATED_DIAGNOSIS
+    ):
         raise SuitabilityRequiredError("Disease classification requires a suitable crop/leaf validation result.")
 
     result = model.predict_disease(image_path)

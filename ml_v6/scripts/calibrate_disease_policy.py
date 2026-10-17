@@ -29,9 +29,12 @@ def load_samples(manifest_path: Path, project_root: Path) -> dict[str, list[tupl
         label = row["canonical_label"].strip()
         if label not in CLASS_NAMES:
             raise ValueError(f"Unknown class label: {label!r}")
-        group_id = row[group_key].strip()
-        if not group_id:
+        source_group_id = row[group_key].strip()
+        if not source_group_id:
             raise ValueError(f"Missing {group_key} for row with image {row['image_path']!r}.")
+        # The splitter scopes leaf/source IDs by canonical class because
+        # upstream leaf maps may reuse the same ID in different classes.
+        group_id = f"{label}:::{source_group_id}"
         groups.setdefault(group_id, set()).add(split)
         if split == "train":
             continue
